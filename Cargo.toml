@@ -1,0 +1,129 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/hekate-core",
+    "crates/hekate-server",
+    "crates/hekate-cli",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.89"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/synapticcybersecurity/hekate"
+homepage = "https://github.com/synapticcybersecurity/hekate"
+# Pre-alpha: nothing in the workspace is published to crates.io yet.
+# Flip on a per-crate basis when a crate is ready for distribution.
+publish = false
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+async-trait = "0.1"
+
+# HTTP
+axum = { version = "0.8", features = ["macros", "http2"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "compression-br", "cors", "limit", "timeout", "fs"] }
+hyper = { version = "1.5", features = ["server", "http1", "http2"] }
+
+# Rate limiting (S-M3 audit fix). Lock-free per-IP token bucket; the
+# server's middleware in src/rate_limit.rs maps clients → IpAddr keys.
+governor = "0.10"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "macros", "migrate", "any", "sqlite", "postgres", "uuid", "chrono", "json"] }
+
+# Errors / utility
+anyhow = "1"
+thiserror = "2"
+uuid = { version = "1.11", features = ["v4", "v7", "serde", "js"] }
+chrono = { version = "0.4", features = ["serde"] }
+url = "2.5"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Config
+figment = { version = "0.10", features = ["toml", "env"] }
+
+# Auth
+jsonwebtoken = "9"
+
+# Streams (for SSE)
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures-util = "0.3"
+
+# OpenAPI
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+
+# Webhook outbound HTTP + HMAC signing
+hmac = "0.12"
+hex = "0.4"
+
+# Crypto stack — Argon2id (KDF), XChaCha20-Poly1305 (symmetric AEAD),
+# Ed25519 (signatures), X25519 (ECDH wrap), HKDF-SHA-256 (sub-keys),
+# BLAKE3 (content hashes), SHA-256 (per-step hashes / manifest chains).
+# Plus ECDSA-P256 for the passkey provider path. All RustCrypto.
+argon2 = "0.5"
+blake3 = "1.5"
+chacha20poly1305 = "0.10"
+# 1PUX import (M2.27a): the file is a ZIP. `default-features = false`
+# disables flate2's optional deps; we only need the deflate decoder
+# the standard "deflate" feature provides.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# KDBX import (M2.27b): KeePass database reader. `save_kdbx4` is gated
+# behind a feature so the test suite can write fixtures programmatically;
+# normal builds only need the read path.
+keepass = { version = "0.7", default-features = false, features = ["save_kdbx4"] }
+# LastPass CSV import (M2.27c): use a real CSV reader so quoted commas
+# + embedded newlines survive the round-trip.
+csv = "1"
+hkdf = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+zeroize = { version = "1.8", features = ["derive"] }
+base64 = "0.22"
+subtle = "2.6"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+# ECDSA-P256 (GH #1 — Hekate as passkey provider). RustCrypto crate; pure
+# Rust, builds on wasm32 unchanged. `ecdsa` feature gives sign/verify;
+# `pkcs8` feature lets us export private keys in PKCS#8 DER (the wire
+# shape Bitwarden uses for fido2Credentials.keyValue, also what every
+# WebAuthn library expects when re-importing).
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
+# ssh-key supplies the OpenSSH private-key parser + agent-protocol-friendly
+# wire formats for public keys and signatures. We ship Ed25519 only for now;
+# RSA/ECDSA tracked as follow-ups.
+ssh-key = { version = "0.6", default-features = false, features = ["alloc", "ed25519"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+rpassword = "7"
+directories = "5"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+nix = { version = "0.29", features = ["fs", "process", "user", "term", "signal"] }
+totp-rs = { version = "5", default-features = false, features = ["otpauth"] }
+# WebAuthn (M2.23). `danger-allow-state-serialisation` is required so we
+# can stash mid-ceremony PasskeyRegistration / PasskeyAuthentication
+# state in the DB between the /start and /finish legs (we don't have
+# in-memory sessions). See `docs/threat-model-gaps.md` "2FA" section.
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+webauthn-authenticator-rs = { version = "0.5", features = ["softpasskey"] }
+# Async reqwest in hekate-server uses the same crate without "blocking" turned
+# on; cargo merges feature sets per-crate.
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

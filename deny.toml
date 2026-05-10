@@ -1,0 +1,67 @@
+# cargo-deny configuration. Wired into `make deny`. Hard gate in CI:
+# any new dependency under a non-allowlisted license, an advisory
+# without a documented ignore, or a banned source must surface as a
+# build break.
+
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+# Read advisory ignores from `.cargo/audit.toml` so we don't fork the
+# justification list. Each ignore there must include the explanation
+# an auditor would need to confirm the dependency is unreachable.
+ignore = [
+    # RUSTSEC-2023-0071 — Marvin Attack on `rsa`. Reachable only via
+    # the compile-time `sqlx-mysql` proc-macro path, which we never
+    # invoke (MySQL feature is off; we don't use `query!()` macros).
+    # Re-evaluate when `rsa` ships a fix.
+    "RUSTSEC-2023-0071",
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.92
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "AGPL-3.0",
+    "AGPL-3.0-or-later",
+    "Unlicense",
+    "Zlib",
+    "CC0-1.0",
+    # `webpki-roots` (transitive via rustls / sqlx / reqwest) ships
+    # the Mozilla CA bundle under CDLA-Permissive-2.0. The CDLA-2.0
+    # is OSI-permissive and compatible with downstream AGPL
+    # distribution.
+    "CDLA-Permissive-2.0",
+]
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Workspace path-deps look like wildcards to cargo-deny; allowing
+# them here keeps the rule meaningful for actual external wildcards.
+allow-wildcard-paths = true
+deny = [
+    # No bans yet; the field exists so future regressions can be
+    # surfaced explicitly. Add `{ name = "<crate>", reason = "<why>" }`
+    # as the project develops a position on a problematic dependency.
+]
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

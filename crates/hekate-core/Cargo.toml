@@ -1,0 +1,59 @@
+[package]
+name = "hekate-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Shared core for hekate (crypto, sync, types). Used by server and clients."
+
+[lib]
+# `cdylib` lets cargo emit a `.wasm` artifact when building for
+# `wasm32-unknown-unknown`. `rlib` keeps it usable as a normal Rust
+# dependency for the server and CLI.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+argon2.workspace = true
+blake3.workspace = true
+chacha20poly1305.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+rand.workspace = true
+zeroize.workspace = true
+base64.workspace = true
+subtle.workspace = true
+x25519-dalek.workspace = true
+ed25519-dalek.workspace = true
+p256.workspace = true
+
+# QR code encoder for TOTP enrollment URIs. `default-features = false`
+# drops the `image` / SVG-rendering features (we render SVG strings
+# ourselves from the Color matrix, so we don't pull in `image`,
+# `resvg`, or anything else heavy). MIT-licensed, pure Rust, ~50KB
+# compiled WASM impact.
+qrcode = { version = "0.14", default-features = false }
+
+# Import-format crates (M2.27 family). They pull in heavy transitive
+# deps (zip, getrandom 0.3) that don't compile on wasm32, and the
+# popup never runs these code paths anyway — imports are a CLI-only
+# flow. Gate on non-wasm so the WASM build stays slim.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+csv.workspace = true
+keepass.workspace = true
+zip.workspace = true
+
+# WASM-only deps. `target.'cfg(...)'.dependencies` keeps these out of
+# the server / CLI builds.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+# rand uses getrandom transitively; on wasm we need the `js` feature so
+# it routes to crypto.getRandomValues().
+getrandom = { version = "0.2", features = ["js"] }

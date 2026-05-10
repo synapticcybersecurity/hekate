@@ -1,0 +1,62 @@
+name: hekate
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hekate
+      POSTGRES_PASSWORD: hekate_dev
+      POSTGRES_DB: hekate
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hekate -d hekate"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "5432:5432"
+
+  hekate-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+    environment:
+      HEKATE_LISTEN: "0.0.0.0:8080"
+      HEKATE_DATABASE_URL: "postgres://hekate:hekate_dev@postgres:5432/hekate"
+      HEKATE_ATTACHMENTS_DIR: "/data/attachments"
+      RUST_LOG: "info,hekate_server=debug,sqlx=warn"
+    volumes:
+      # M2.24 — attachments + file Sends. Server creates this dir on
+      # bootstrap (LocalFsBlobStore::new); without a volume the
+      # distroless image's read-only root crashes startup.
+      - hekate_attachments:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default       # talks to Postgres
+      - apps          # Traefik discovery
+    ports:
+      # Direct access for local debugging; Traefik exposes the same on
+      # http://hekate.localhost on port 80.
+      - "8088:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=apps"
+      - "traefik.http.routers.hekate.entrypoints=web"
+      - "traefik.http.routers.hekate.rule=Host(`hekate.localhost`)"
+      - "traefik.http.routers.hekate.service=hekate"
+      - "traefik.http.services.hekate.loadbalancer.server.port=8080"
+    restart: unless-stopped
+
+networks:
+  default:
+  apps:
+    external: true
+
+volumes:
+  pgdata:
+  hekate_attachments:

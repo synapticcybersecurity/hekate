@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hekate extension icon.
+
+  Design rationale:
+    - Rounded square in Apple system-blue → indigo gradient. Matches the
+      popup's brand palette without being identical to any single existing
+      password manager.
+    - Stylized key glyph centered. The bow is a complete circle (suggests
+      both a keyhole and Hekate's strophalos/wheel — distinctive at small
+      sizes); the bit/teeth point down for unambiguous "key" reading.
+    - White-on-color stays legible at 16 px.
+
+  Render to PNG at 16/32/48/128 with `qlmanage -t -s <size> -o <dir> icon.svg`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#007AFF"/>
+      <stop offset="100%" stop-color="#5856D6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square card. iOS-style 22.5% corner radius. -->
+  <rect x="0" y="0" width="128" height="128" rx="29" ry="29" fill="url(#bg)"/>
+
+  <!-- Key bow (the round head).
+       Outer circle stroked white, inner cutout transparent — gives the
+       "donut" shape that reads as a keyhole or wheel. -->
+  <g fill="none" stroke="white" stroke-width="9" stroke-linecap="round">
+    <circle cx="64" cy="46" r="22"/>
+  </g>
+
+  <!-- Inner dot that anchors the bow visually + echoes the strophalos
+       center. -->
+  <circle cx="64" cy="46" r="4.5" fill="white"/>
+
+  <!-- Key shaft + teeth, pointing down. -->
+  <g stroke="white" stroke-width="9" stroke-linecap="round" fill="none">
+    <line x1="64" y1="68" x2="64" y2="100"/>
+    <!-- two teeth on the right side -->
+    <line x1="64" y1="84"  x2="76" y2="84"/>
+    <line x1="64" y1="94"  x2="72" y2="94"/>
+  </g>
+</svg>

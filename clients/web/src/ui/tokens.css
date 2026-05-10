@@ -1,0 +1,545 @@
+/* Hekate web vault — design tokens.
+ *
+ * Lifted from clients/extension/popup/popup.css's variable palette
+ * (Apple-Passwords-inspired neutral surfaces, brand #007AFF light /
+ * #0A84FF dark). C.0 ships only the minimum surface the placeholder
+ * renders need; the rest is brought across milestone-by-milestone as
+ * components ship. Avoid Bitwarden trade dress (#175DDC, paper-plane).
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: #f7f7fa;
+  --fg: #1c1c1e;
+  --fg-muted: #6c6c70;
+  --border: rgba(60, 60, 67, 0.18);
+  --brand: #007aff;
+  --brand-fg: #ffffff;
+  --danger: #dc2626;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --fg: #f2f2f7;
+    --fg-muted: #98989f;
+    --border: rgba(99, 99, 102, 0.4);
+    --brand: #0a84ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--brand);
+}
+
+code,
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+}
+
+/* --- shared component primitives ----------------------------------------
+ * Used by the recipient screen (C.1) and reused by C.2+ as more flows
+ * land. Keep this list small and additive — each new class should map
+ * to an actual rendered element, not a hypothetical future one.
+ */
+
+.page {
+  max-width: 640px;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+  width: 100%;
+}
+
+.page h1 {
+  font-size: 1.5rem;
+  margin: 0 0 0.25rem;
+}
+
+.muted {
+  color: var(--fg-muted);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.card + .card {
+  margin-top: 1rem;
+}
+
+.btn {
+  font: inherit;
+  padding: 0.55rem 1.1rem;
+  background: var(--brand);
+  color: var(--brand-fg);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.btn:not([disabled]):hover {
+  filter: brightness(1.05);
+}
+
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+.input,
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="url"] {
+  font: inherit;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.input:focus,
+input:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.field label {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+
+.banner {
+  border-left: 3px solid var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  margin: 1rem 0;
+  font-size: 0.95em;
+}
+
+.banner-error {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.output {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+/* --- shell layout (TopShell / SubShell) ---------------------------------
+ * Full-viewport vertical flex with a sticky header on top and bottom
+ * tab bar (top shell only). Content scrolls inside, never the body.
+ * Inner content is max-width-constrained for readability on wide
+ * monitors — popup ran at 360px so it didn't need this.
+ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: 100vh;
+}
+
+#app:has(.shell) {
+  display: block;
+}
+
+.shell-header {
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  height: 56px;
+}
+
+.shell-header .header-title {
+  flex: 1 1 auto;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-header .header-action,
+.shell-header .header-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  background: transparent;
+  border: 0;
+  color: var(--brand);
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+
+.shell-header .header-action:hover,
+.shell-header .header-back:hover {
+  background: var(--surface-2);
+}
+
+.shell-header .header-action svg {
+  width: 22px;
+  height: 22px;
+}
+
+.shell-header .header-back svg {
+  width: 22px;
+  height: 22px;
+}
+
+.shell-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+}
+
+.shell-content > .shell-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.shell-tabbar {
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  padding: 0.25rem 0 max(0.25rem, env(safe-area-inset-bottom));
+}
+
+.shell-tabbar .tab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.25rem;
+  background: transparent;
+  border: 0;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.shell-tabbar .tab svg {
+  width: 22px;
+  height: 22px;
+}
+
+.shell-tabbar .tab:hover {
+  color: var(--fg);
+}
+
+.shell-tabbar .tab.active {
+  color: var(--brand);
+}
+
+/* --- search + filter chips ---------------------------------------------- */
+
+.search-bar {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.search-bar svg {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 0.55rem 0.75rem 0.55rem 2.1rem;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+
+.filter-chips .chip {
+  flex: 0 0 auto;
+  background: var(--surface);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-chips .chip:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.filter-chips .chip.active {
+  background: var(--brand);
+  color: var(--brand-fg);
+  border-color: var(--brand);
+}
+
+/* --- cipher rows -------------------------------------------------------- */
+
+.cipher-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.6rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--fg);
+}
+
+.cipher-row:hover,
+.cipher-row:focus-visible {
+  background: var(--surface);
+  outline: none;
+}
+
+.cipher-row + .cipher-row {
+  margin-top: 0.15rem;
+}
+
+.row-icon {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface-2));
+  color: var(--brand);
+}
+
+.row-icon[data-type="2"] { background: color-mix(in srgb, #f59e0b 18%, var(--surface-2)); color: #b45309; }
+.row-icon[data-type="3"] { background: color-mix(in srgb, #10b981 18%, var(--surface-2)); color: #047857; }
+.row-icon[data-type="4"] { background: color-mix(in srgb, #ef4444 18%, var(--surface-2)); color: #b91c1c; }
+.row-icon[data-type="5"] { background: color-mix(in srgb, #6366f1 18%, var(--surface-2)); color: #4338ca; }
+.row-icon[data-type="6"] { background: color-mix(in srgb, #14b8a6 18%, var(--surface-2)); color: #0f766e; }
+.row-icon[data-type="7"] { background: color-mix(in srgb, #a855f7 18%, var(--surface-2)); color: #7e22ce; }
+
+@media (prefers-color-scheme: dark) {
+  .row-icon[data-type="2"] { color: #fbbf24; }
+  .row-icon[data-type="3"] { color: #34d399; }
+  .row-icon[data-type="4"] { color: #f87171; }
+  .row-icon[data-type="5"] { color: #a5b4fc; }
+  .row-icon[data-type="6"] { color: #5eead4; }
+  .row-icon[data-type="7"] { color: #c084fc; }
+}
+
+.row-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.row-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-sub {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 0;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- TOTP enrollment (C.7d-1) -------------------------------------------
+ * Mirrors the popup's two-step enrollment UX: QR up top, manual-entry
+ * fallback collapsed in a <details>, confirm form at the bottom. */
+
+.totp-qr {
+  display: flex;
+  justify-content: center;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.totp-qr svg {
+  width: 220px;
+  height: 220px;
+  background: #ffffff;
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.totp-fallback {
+  margin: 0.75rem 0 1rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.totp-fallback summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--brand);
+  padding: 0.35rem 0;
+  user-select: none;
+}
+
+.totp-fallback summary:hover {
+  filter: brightness(1.15);
+}
+
+.totp-fallback[open] summary {
+  margin-bottom: 0.4rem;
+}
+
+.totp-fallback code {
+  word-break: break-all;
+}
+
+/* Recovery-codes screen: monospaced grid, easy to copy/transcribe. */
+.recovery-codes {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.95rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  white-space: pre;
+  margin: 0 0 0.75rem;
+  user-select: all;
+}
+
+/* --- toast (status messages) -------------------------------------------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 80px);
+  transform: translateX(-50%);
+  background: var(--fg);
+  color: var(--bg);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  opacity: 0.95;
+}

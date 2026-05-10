@@ -1,0 +1,23 @@
+# Configuration for `cargo audit`.
+#
+# Each ignored advisory must come with a justification that an auditor
+# can verify. Don't add an ignore here just because the noise is
+# annoying — fix the root cause or upgrade past the bad version.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — Marvin Attack timing side-channel in `rsa`
+    # 0.9.10 (no fixed version available as of 2026-05-07). Reachable
+    # in our build only via `sqlx-mysql -> sqlx-macros -> sqlx`, which
+    # is pulled in transitively by sqlx's proc-macro feature. We do
+    # NOT enable the `mysql` feature on `sqlx` (the workspace toggles
+    # only `sqlite` + `postgres`) and we do NOT use compile-time
+    # `query!()` / `query_as!()` macros — every query call site uses
+    # the runtime `sqlx::query(...)` API. The `rsa` crate therefore
+    # never appears in the runtime binary; the vulnerable code path is
+    # only reachable from the compile-time MySQL TLS proc-macro work,
+    # which we never invoke. Re-evaluate when:
+    #   * `rsa` ships a fixed release (drop this ignore), or
+    #   * we add a runtime path that uses MySQL or `query!()`.
+    "RUSTSEC-2023-0071",
+]

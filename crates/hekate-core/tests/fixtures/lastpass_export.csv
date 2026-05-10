@@ -1,0 +1,9 @@
+url,username,password,totp,extra,name,grouping,fav
+https://github.com,alice@example.com,hunter2,otpauth://totp/GH,primary dev account,GitHub,Personal/Dev,1
+https://acme.slack.com,alice@acme,slacking,,,Slack,Work,0
+http://sn,,,,"home: tacocat
+guest: muffin",Wifi password,Personal,0
+http://sn,,,,"NoteType:Credit Card
+Number:4111-1111-1111-1111
+Expiration Date:12/2030",Visa (skipped),Personal,0
+http://sn,,,,quick reminder body,Reminder,,0

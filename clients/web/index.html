@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Audit X-M5 (2026-05-07): the Send recipient surface (/send/*) carries
+      the AEAD key in the URL fragment. Fragment is never sent to the
+      server by `fetch`, but a sloppy referrer policy could leak the
+      `sendId` path component (which by itself authenticates as the access
+      token to /api/v1/public/sends/<id>/access). `no-referrer` covers
+      both the owner SPA at /web/* and the recipient surface in one rule.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Hekate</title>
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="128x128" href="/icons/icon-128.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-128.png" />
+    <link rel="stylesheet" href="/src/ui/tokens.css" />
+  </head>
+  <body>
+    <div id="app">Loading…</div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

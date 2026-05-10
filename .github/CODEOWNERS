@@ -1,0 +1,6 @@
+# Sole maintainer for now. Auto-requests review on every PR. When a
+# second maintainer joins, add them here on their primary surface
+# (e.g. `crates/hekate-server/    @other-handle`) rather than scoping
+# this file by directory pre-maturely.
+
+*    @hhoffman

@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>hekate offscreen worker</title>
+<!--
+  Minimal offscreen document — exists solely so the service worker can
+  drive `navigator.clipboard.writeText("")` from a clipboard-eligible
+  context (chrome.offscreen reason "CLIPBOARD"). The page has no UI;
+  it listens for a single message from the SW and exits.
+-->
+<script src="offscreen.js"></script>

@@ -1,0 +1,83 @@
+[package]
+name = "hekate-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "hekate server: axum HTTP API, sqlx persistence, push, identity."
+
+[[bin]]
+name = "hekate-server"
+path = "src/main.rs"
+
+[dependencies]
+hekate-core = { path = "../hekate-core" }
+
+tokio.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+hyper.workspace = true
+governor.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+# anyhow already pulled in above; figment used for config loading
+
+uuid.workspace = true
+chrono.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+figment.workspace = true
+url.workspace = true
+
+# Auth
+jsonwebtoken.workspace = true
+argon2.workspace = true
+base64.workspace = true
+rand.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+ed25519-dalek.workspace = true
+
+# SSE / push
+tokio-stream.workspace = true
+futures-util.workspace = true
+
+# OpenAPI
+utoipa.workspace = true
+utoipa-scalar.workspace = true
+
+# Webhooks
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+hmac.workspace = true
+hex.workspace = true
+
+# 2FA: TOTP verification (server holds the secret in plaintext to verify
+# at login time — see docs/threat-model-gaps.md "2FA" section)
+totp-rs.workspace = true
+
+# 2FA: WebAuthn / FIDO2 (M2.23a). Stateless server-side, with
+# mid-ceremony state stashed in `two_factor_webauthn_pending`.
+webauthn-rs.workspace = true
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
+http-body-util = "0.1"
+serde_json.workspace = true
+hmac.workspace = true
+hex.workspace = true
+base64.workspace = true
+sha2.workspace = true
+ed25519-dalek.workspace = true
+totp-rs.workspace = true
+# Software-authenticator for the WebAuthn integration tests.
+webauthn-authenticator-rs.workspace = true

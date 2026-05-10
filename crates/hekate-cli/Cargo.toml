@@ -1,0 +1,38 @@
+[package]
+name = "hekate-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "hekate command-line client. Calls only public REST endpoints."
+
+[[bin]]
+name = "hekate"
+path = "src/main.rs"
+
+[dependencies]
+hekate-core = { path = "../hekate-core" }
+
+clap.workspace = true
+rpassword.workspace = true
+directories.workspace = true
+reqwest.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+base64.workspace = true
+rand.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+ed25519-dalek.workspace = true
+sha2.workspace = true
+ssh-key.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync"] }
+totp-rs.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true

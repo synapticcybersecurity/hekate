@@ -1,0 +1,22 @@
+{
+  "name": "hekate-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Hekate web vault — SolidJS SPA, mounted at /web/* (owner mode) and /send/* (recipient mode)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.15.3",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vite-plugin-solid": "^2.11.0"
+  }
+}

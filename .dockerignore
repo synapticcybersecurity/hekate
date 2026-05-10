@@ -1,0 +1,13 @@
+target/
+.git/
+.github/
+data/
+*.sqlite
+*.sqlite-*
+*.md
+.idea/
+.vscode/
+.DS_Store
+.env
+.env.local
+docker/dev.dockerfile

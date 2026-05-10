@@ -1,0 +1,75 @@
+name: Bug report
+description: Something is broken or behaving incorrectly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Please do not file security
+        vulnerabilities here** — use the private advisory channel
+        in [SECURITY.md](../SECURITY.md).
+  - type: input
+    id: commit
+    attributes:
+      label: Commit hash
+      description: Output of `git rev-parse --short HEAD` on the affected checkout.
+      placeholder: e.g. f45b3c9
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      multiple: true
+      options:
+        - Server (hekate-server)
+        - CLI (hekate)
+        - Browser extension
+        - Web vault
+        - Crypto core (hekate-core)
+        - Docs / build / CI
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Describe the actual behaviour, not what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        The smaller the repro, the faster the fix. If you can
+        provide a failing test or a curl invocation, attach it
+        here.
+      placeholder: |
+        1. make up
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: |
+        OS, browser (for client bugs), Postgres vs SQLite,
+        whether you're running via Docker or a host toolchain.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / errors
+      description: |
+        Paste the smallest log snippet that shows the issue.
+        Redact anything sensitive.
+      render: shell

@@ -1,0 +1,39 @@
+# Single-binary SQLite-backed deployment: no Postgres, no networked DB.
+# Useful for personal/family self-host and for fast local smoke tests.
+
+name: hekate
+
+services:
+  hekate-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+    environment:
+      HEKATE_LISTEN: "0.0.0.0:8080"
+      HEKATE_DATABASE_URL: "sqlite:///data/hekate.sqlite?mode=rwc"
+      RUST_LOG: "info,hekate_server=debug,sqlx=warn"
+    volumes:
+      - hekate_data:/data
+    networks:
+      - default
+      - apps
+    ports:
+      - "8088:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=apps"
+      - "traefik.http.routers.hekate.entrypoints=web"
+      - "traefik.http.routers.hekate.rule=Host(`hekate.localhost`)"
+      - "traefik.http.routers.hekate.service=hekate"
+      - "traefik.http.services.hekate.loadbalancer.server.port=8080"
+    restart: unless-stopped
+
+networks:
+  default:
+  apps:
+    external: true
+
+volumes:
+  hekate_data:

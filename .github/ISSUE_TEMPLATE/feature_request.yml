@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a new capability or a change to existing behaviour.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hekate's roadmap is in [`docs/status.md`](../docs/status.md).
+        Before opening a feature request, please skim it — many
+        features are already planned and tracked there.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: |
+        Lead with the **use case**, not the implementation. "I
+        want feature X" is harder to evaluate than "When I do Y,
+        Z happens, and I'd like instead …".
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: How would you solve it? Sketch the user-visible behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What did you try first or rule out, and why?
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface(s) does this touch?
+      multiple: true
+      options:
+        - Server (hekate-server)
+        - CLI (hekate)
+        - Browser extension
+        - Web vault
+        - Crypto core (hekate-core)
+        - Docs / build / CI
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Are you willing to contribute the implementation?
+      options:
+        - label: Yes, I'd like to send a PR for this.
+        - label: I can help test or review.
+        - label: No, just suggesting.

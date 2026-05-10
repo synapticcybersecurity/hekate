@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-progress runs of the same workflow on the same ref. Keeps
+# CI cost down on rapid re-pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust:
+    name: Rust workspace (fmt + clippy + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry + target/
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test --workspace
+        # `--test-threads=2` keeps the in-test sqlite + tokio + spawned
+        # webhook-dispatcher fan-out within ubuntu-latest's resource
+        # ceiling. The same tests pass locally with default parallelism
+        # but the GitHub runner trips intermittent 500s on heavy
+        # contention. Worth a follow-up to harden the test bootstrap;
+        # not blocking on it.
+        run: cargo test --workspace --no-fail-fast -- --test-threads=2
+
+  deny:
+    name: cargo-deny (licenses + sources + advisories + bans)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+
+  wasm:
+    name: hekate-core WASM build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain (with wasm32 target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo registry + target/
+        uses: Swatinem/rust-cache@v2
+        with:
+          # The Rust job above caches against the host triple; this
+          # cross-target build needs its own key so they don't fight.
+          key: wasm
+
+      - name: cargo build (wasm32-unknown-unknown, hekate-core)
+        run: cargo build --release --target wasm32-unknown-unknown -p hekate-core

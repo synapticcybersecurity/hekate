@@ -1,0 +1,107 @@
+{
+  "encrypted": false,
+  "folders": [
+    {
+      "id": "fld-personal",
+      "name": "Personal"
+    },
+    {
+      "id": "fld-work",
+      "name": "Work"
+    }
+  ],
+  "items": [
+    {
+      "id": "itm-001",
+      "type": 1,
+      "name": "GitHub",
+      "favorite": true,
+      "folderId": "fld-work",
+      "notes": "primary dev account",
+      "login": {
+        "uris": [
+          {"uri": "https://github.com/login"}
+        ],
+        "username": "alice@example.com",
+        "password": "hunter2",
+        "totp": "otpauth://totp/GitHub:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"
+      }
+    },
+    {
+      "id": "itm-002",
+      "type": 1,
+      "name": "AWS Console",
+      "folderId": "fld-work",
+      "login": {
+        "uris": [{"uri": "https://console.aws.amazon.com"}],
+        "username": "ops-readonly",
+        "password": "arbitrary"
+      }
+    },
+    {
+      "id": "itm-003",
+      "type": 2,
+      "name": "Wifi password",
+      "folderId": "fld-personal",
+      "notes": "home: tacocat\nguest: muffin"
+    },
+    {
+      "id": "itm-004",
+      "type": 3,
+      "name": "Travel Visa",
+      "folderId": "fld-personal",
+      "card": {
+        "cardholderName": "Alice Doe",
+        "brand": "Visa",
+        "number": "4111111111111111",
+        "expMonth": "12",
+        "expYear": "2030",
+        "code": "123"
+      }
+    },
+    {
+      "id": "itm-005",
+      "type": 4,
+      "name": "Travel identity",
+      "folderId": "fld-personal",
+      "identity": {
+        "title": "Ms",
+        "firstName": "Alice",
+        "lastName": "Doe",
+        "email": "alice@example.com",
+        "phone": "+1-555-0100",
+        "address1": "123 Main St",
+        "city": "Anywhere",
+        "state": "CA",
+        "postalCode": "94000",
+        "country": "US"
+      }
+    },
+    {
+      "id": "itm-006",
+      "type": 1,
+      "name": "Custom-fields example",
+      "notes": "primary note body",
+      "fields": [
+        {"name": "recovery-code", "value": "abcd-efgh"},
+        {"name": "backup-email", "value": "alt@example.com"}
+      ],
+      "login": {
+        "uris": [],
+        "username": "u",
+        "password": "p"
+      }
+    },
+    {
+      "id": "itm-007",
+      "type": 1,
+      "name": "Org-owned (skipped)",
+      "organizationId": "org-acme",
+      "login": {
+        "uris": [],
+        "username": "x",
+        "password": "y"
+      }
+    }
+  ]
+}
