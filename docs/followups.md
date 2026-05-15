@@ -85,15 +85,26 @@ primitives.
   audit doc. Zcash Foundation `frost` crate at v3.0.0 (May 2026),
   partially audited by NCC.
 
-## Phase D candidates (greenfield)
+## Passkey provider — residual follow-ups
 
-- **GH #1 — Hekate as passkey provider — SHIPPED + smoke-green.**
-  webauthn.io round-trip verified; commit 981df4d. Remaining
-  follow-ups (cosmetic / not load-bearing):
-    - Web vault parity (no proxy on web; informational UI only)
-    - CLI passkey enroll/list/sign (post-libfido2 binding)
-    - Firefox parity (its equivalent API is `browser.webAuthn`
-      per WICG)
+The Chromium passkey-provider track is shipped + smoke-green
+(webauthn.io round-trip verified; closed as #1). What's still open:
+
+- **Firefox port** — tracked as #4. Blocked on Firefox shipping
+  its `browser.webAuthn` extension API (WICG draft, currently
+  flagged in Nightly). The Chrome-side code in
+  `crates/hekate-core/src/passkey.rs` and the popup approval UI
+  will be reused unchanged once the API is available; only
+  `clients/extension/background.js` event wiring needs a Firefox
+  variant. Separate AMO publication path.
+- **Web vault parity** — informational UI only. A SPA can't be
+  a passkey provider (same-origin policy + no equivalent
+  privileged-context API for regular web pages), so the web
+  vault scope here is showing the user their stored passkeys,
+  rename/delete, last-used timestamps. Not actionable.
+- **CLI enroll / list / sign** — gated on a libfido2 binding so
+  the CLI can drive a USB / NFC authenticator. Not load-bearing
+  for the browser-extension flow.
 
 ## Display hierarchy
 
