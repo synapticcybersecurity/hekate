@@ -135,6 +135,12 @@ Keys:
 | `HEKATE_ATTACHMENTS_DIR` | `/data/attachments` | Filesystem root for the local-FS blob backend (M2.24). Created on bootstrap if missing. Cloud deployments will swap to S3 in M2.24a. |
 | `HEKATE_WEBAUTHN_RP_ID` | `hekate.localhost` | Relying-party ID for FIDO2 passkeys (M2.23). Must match the eTLD+1 of the browser-facing origin. Self-host: set to your domain. |
 | `HEKATE_WEBAUTHN_RP_ORIGIN` | `http://hekate.localhost` | Browser-facing origin URL. HTTPS in production except `localhost` / `*.localhost`. |
+| `HEKATE_MAX_ATTACHMENT_BYTES` | `104857600` (100 MiB) | Per-attachment ciphertext byte cap. Refused at tus creation if exceeded. |
+| `HEKATE_MAX_CIPHER_ATTACHMENT_BYTES` | `1073741824` (1 GiB) | Per-cipher ciphertext byte cap across all completed attachments. |
+| `HEKATE_MAX_ACCOUNT_ATTACHMENT_BYTES` | `10737418240` (10 GiB) | Per-account ciphertext byte cap across all completed attachments. |
+| `HEKATE_WEBHOOKS_ALLOW_UNSAFE_DESTINATIONS` | `false` | Allow webhook URLs pointing at private / loopback / link-local IPs, or plain `http://`. Set to `true` only in dev compose to hit a localhost receiver; production should leave it off for SSRF defense. |
+| `HEKATE_CORS_ALLOWED_ORIGINS` | empty list | Exact-match origin allowlist for cross-origin browser callers (e.g. `https://vault.example.com`). Leave empty for same-origin SPA + API deployments. No wildcards. |
+| `HEKATE_TRUST_PROXY_HEADERS` | `false` | Trust the leftmost `X-Forwarded-For` / `Forwarded: for=` entry as the client IP for rate limiting. Set to `true` only when behind a reverse proxy that strips/rewrites these headers (Traefik, nginx, Caddy, ALB). |
 
 ## Database
 

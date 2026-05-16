@@ -11,11 +11,13 @@ never trusted with plaintext keys.
 > `pmgr_pat_*` token prefixes, `PMGRA1` magic) keep the original `pmgr-…`
 > prefix because they're baked into ciphertexts.
 >
-> **Status (M3.15):** full vault CRUD across all 7 cipher types, sends
-> (text + file), attachments inside ciphers, organizations (read-only
-> + owner-side create/invite/accept), `account rotate-keys`,
+> **Status (current):** full vault CRUD across all cipher types,
+> sends (text + file), attachments inside ciphers, organizations
+> (full read + write incl. create / invite / accept / collections /
+> policies / member removal + key rotation), `account rotate-keys`,
 > autofill, 2FA management (TOTP + WebAuthn + recovery codes),
-> strict-manifest toggle, settings.
+> strict-manifest toggle, passkey provider (`webAuthenticationProxy`),
+> settings.
 >
 > The popup and the web vault (`clients/web/`) are peer first-party
 > clients now. They share the same `hekate-core`
@@ -95,7 +97,7 @@ Re-run `make extension` whenever the `hekate-core` Rust source changes.
 3. Click **Load unpacked**.
 4. Pick the `clients/extension/` directory — *not* the `wasm/`
    subdirectory or the workspace root.
-5. The extension appears with name "Hekate" and version "0.0.1". Pin it
+5. The extension appears with name "Hekate" and version "0.0.6". Pin it
    to the toolbar (puzzle-piece icon → pin) for one-click access.
 
 If you change the source, click the circular reload icon on the
@@ -156,7 +158,7 @@ To try anyway:
 | **Close the browser** | `chrome.storage.session` is cleared automatically. Next browser launch requires the master password. |
 | **📤 Sends** (toolbar) | M3.11 + M3.13 — opens the Sends panel: list owned text + file Sends with access counts + expiry, "+ New text Send" / "+ New file Send" creates one with optional password / max-access / TTL and prints the share URL, "Open shared link" pastes a URL and walks the public access flow client-side (text → stdout-equivalent display; file → browser save dialog). The send_key lives only in the URL fragment; the server can revoke but cannot decrypt. |
 | **Attachments** (cipher edit view) | M3.12 — every personal cipher's edit view grows an "Attachments" section. + Add file picks a file, encrypts it with PMGRA1 chunked-AEAD, BLAKE3-hashes the ciphertext, and tus-uploads single-shot. Download fetches the ciphertext, BLAKE3-verifies, decrypts, triggers a browser save. Delete removes the row + queues blob cleanup. The BW04 manifest is auto re-signed after every write so the per-cipher `attachments_root` binding stays current. |
-| **🏢 Orgs** (toolbar) | M3.14 — read-only list of orgs you belong to. Shows role, member count, roster version, active-policy count, pending org-key rotation flag if any. Write operations (create org, invite peer, accept invite, collection management) need signcryption-envelope WASM that the popup hasn't lifted; for now use `hekate org` from the CLI for those. |
+| **🏢 Orgs** (toolbar) | M3.14 + M3.14a–d — list orgs you belong to with role, member count, roster version, active-policy count, pending org-key rotation flag if any. Full owner-side writes: create org, invite peer, cancel pending invite, accept invite, collection CRUD + member permissions, member removal + receiver-side rotate-confirm, policies UI (M4.6 — master_password_complexity, vault_timeout, password_generator, single_org, restrict_send), prune-roster recovery. All writes go through signcryption-envelope WASM (`signcryptSealEnvelope` / `signcryptOpenEnvelope` / `signOrgRoster` / `verifyOrgRoster`). |
 | **Rotate keys…** (Settings) | M3.15 — generates a fresh symmetric `account_key` and re-wraps every personal-cipher PCK + Send key + org-membership key + the X25519 private key under it. Master password (and therefore the BW04 manifest signing key) stays the same; pinned peers + the manifest are unaffected. Other devices need to re-login afterwards. 2FA-enabled accounts must use `hekate account rotate-keys` on the CLI for now (popup's 2FA challenge dispatcher isn't wired into this flow yet). |
 
 The popup transparently refreshes the access token on 401 using the
@@ -247,11 +249,14 @@ The manifest declares:
 
 | Permission | Why |
 |---|---|
-| `storage` | `chrome.storage.session` is a `storage` API; `local` we don't currently use but reserved for future. |
+| `storage` | `chrome.storage.session` + `chrome.storage.local` for pinned-peer / pinned-org keys and TOFU state. |
 | `clipboardWrite` | Copy-password buttons. |
 | `host_permissions: ["http://*/*", "https://*/*"]` | Cross-origin `fetch` to whatever hekate server URL the user enters. Will be tightened to a configured origin once that UX exists. |
 | `scripting` | Inject the `pageFill` function into the active tab on a click of **Fill**. |
 | `activeTab` | Query the active tab's URL so the popup can host-match ciphers without needing always-on tab listeners. |
+| `alarms` | Drives the clipboard auto-clear timer in the service worker so it fires after the popup closes. Chromium clamps the alarm minimum to ~30 s. |
+| `offscreen` | Hosts an offscreen document that owns the clipboard between fires so the auto-clear still works when no popup is open. |
+| `webAuthenticationProxy` | Implements the passkey provider that intercepts `navigator.credentials.create` / `.get` and routes ceremonies through the vault. Requires Chrome 115+. |
 
 The CSP is `script-src 'self' 'wasm-unsafe-eval'`. The `wasm-unsafe-eval`
 clause is required by Chromium to compile WebAssembly inside an MV3
@@ -290,6 +295,7 @@ shown by `hekate show <id>` exactly the same.
 | **Identity** | name, title, first/middle/last, company, email, phone, address1+2, city/state/postal/country, SSN, passport, license, notes |
 | **SSH key** | name, public key, private key, fingerprint, notes |
 | **TOTP** | name, secret (`otpauth://` URL or BASE32), issuer, account, notes |
+| **API key** | imported from other vaults; popup renders read-only (no add-form entry). |
 
 TOTP rows live-update their 6-digit code with a 30-second countdown.
 Both `otpauth://` URLs and bare base32 secrets are accepted; the
@@ -298,19 +304,18 @@ parameters from an `otpauth://` URL are honoured.
 
 ## What's coming next
 
-Open popup-side work tracked in `MEMORY.md`:
+See `docs/followups.md` for the durable popup-side work queue.
+Recurring items:
 
 - **Masked re-auth modal** — replace the current `window.prompt()`
   used for MFA setup re-confirmation; Chrome can't mask `prompt()`
   inputs natively. Custom HTML modal with `<input type="password">`.
 - **TOTP enrollment QR code** — currently shows the raw `otpauth://`
   URI text; most authenticators expect a scan.
-- **Org member list emails** — pull `OrgView.member_emails` (already
-  shipped server-side in C.5) and render emails instead of raw
-  UUIDs.
 - **Invite peer accepts email OR UUID** — currently UUID-only,
   unfriendly. Needs a small server endpoint for email→pubkey-bundle
   lookup with prelogin-style enumeration guards.
+
 Longer-term:
 
 - **Inline content-script autofill** with a Shadow-DOM overlay near
@@ -328,6 +333,12 @@ Longer-term:
 ```
 clients/extension/
 ├── manifest.json                  MV3 declaration
+├── background.js                  service worker — SSE subscription,
+│                                   passkey-provider ceremonies,
+│                                   clipboard-clear alarm dispatch
+├── offscreen.html                 offscreen document host
+├── offscreen.js                   clipboard-clear logic that survives
+│                                   popup closure
 ├── popup/
 │   ├── popup.html                 shell that loads popup.js as an ES module
 │   ├── popup.css                  minimal light/dark UI
@@ -336,7 +347,6 @@ clients/extension/
 └── README.md                      short load-unpacked walkthrough
 ```
 
-`popup.js` keeps the entire flow in one file at this stage — small
-enough to read top-to-bottom, no build step beyond `wasm-bindgen`. As
-M3.2+ adds autofill, content scripts, and richer UI, this will be
-broken up.
+`popup.js` carries the vault flow; `background.js` owns the
+service-worker-level concerns (SSE, passkey ceremonies, alarm
+dispatch). Both load the same `hekate-core` WASM module.

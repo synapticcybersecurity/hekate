@@ -178,7 +178,16 @@ verifications use this pin, not the value the server hands back.
 
 ## 5. Schema
 
-Migration `0012_organizations.sql`:
+> **Note (post-republish):** the migration history was collapsed
+> into a single `migrations/0001_baseline.sql` when the repo was
+> republished (2026-05-10). The schema sketched below corresponds
+> to the org-related tables in that consolidated baseline; some
+> column names diverged slightly during implementation (e.g.
+> `organization_collections.name_encstring` vs `name`, the
+> consolidated `org_cipher_manifests` table). The canonical schema
+> is the baseline migration file.
+
+Sketch (as designed; consolidated into `migrations/0001_baseline.sql`):
 
 ```sql
 -- Top-level org row. Plaintext fields (name, signing_pubkey, owner_user_id)
@@ -276,8 +285,9 @@ exactly one is set. M4 just starts populating `org_id`. The
 - Org cipher (`org_id` set): under the org's symmetric key.
 
 The cipher's AAD must include `org_id` to prevent a server from
-moving a cipher between orgs. Migration `0013_cipher_aad_v3.sql`
-bumps the AAD format if/when this lands.
+moving a cipher between orgs. This landed alongside the M4.3
+collection work; the AAD bump rode into the consolidated baseline
+migration rather than getting its own file.
 
 ---
 

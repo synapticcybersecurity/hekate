@@ -245,17 +245,17 @@ personal-vault → team → enterprise scope Hekate targets at v1.0.
 
 | Suite | Tests | Status |
 |---|---:|---|
-| `hekate-core` (KDF, KDF-bind MAC, EncString, keypair, vault manifest, signcrypt + pubkey bundle, org roster, chunked-AEAD attachment + manifest v3 attachments_root, send HKDF/AAD/URL-fragment, Bitwarden + 1Password 1PUX + KeePass KDBX + **LastPass CSV** import parsers + projection) | 139 | ✅ |
+| `hekate-core` (KDF, KDF-bind MAC, EncString, keypair, vault manifest, signcrypt + pubkey bundle, org roster, chunked-AEAD attachment + manifest v3 attachments_root, send HKDF/AAD/URL-fragment, Bitwarden + 1Password 1PUX + KeePass KDBX + **LastPass CSV** import parsers + projection) | 152 | ✅ |
 | `hekate-core` integration (M2.27 Bitwarden fixture: counts, login round-trip, card field-name mapping, identity drops empty, custom fields, secure note body) | 6 | ✅ |
 | `hekate-core` integration (M2.27a 1Password fixture: counts, login round-trip with TOTP, card extraction, identity structured address, password-only category, vault → folder threading, secure note body) | 7 | ✅ |
 | `hekate-core` integration (M2.27c LastPass fixture: counts, login round-trip with TOTP, multi-line secure note body, typed-note skip, leaf folder threading, short note body) | 6 | ✅ |
-| `hekate-server` unit (auth, jwt, password, refresh, scope, extractor, webhooks signing, kdf-params-mac, perms lattice, 2FA recovery-code generator + alphabet + TOTP secret length, local-FS BlobStore, **attachments GC worker**) | 40 | ✅ |
+| `hekate-server` unit (auth, jwt, password, refresh, scope, extractor, webhooks signing, kdf-params-mac, perms lattice, 2FA recovery-code generator + alphabet + TOTP secret length, local-FS BlobStore, **attachments GC worker**) | 51 | ✅ |
 | `tfa.rs` integration (M2.22: enroll round-trip, recovery single-use, totp replay block, invalid challenge token, disable, regenerate, status, refresh-grant bypass) | 9 | ✅ |
 | `webauthn.rs` integration (M2.23a: enroll + login via SoftPasskey, replay rejected, list/delete/rename round-trip, per-user scoping, refresh-grant bypass) | 5 | ✅ |
 | `service_accounts.rs` integration (M2.5: owner-only create, non-owner rejected, SAT/JWT cross-principal isolation, revoke, disable cascades to verify, delete cascades to tokens, scope validation, list) | 9 | ✅ |
 | `manifest.rs` integration (BW04 signed vault manifest, parent-hash chain) | 9 | ✅ |
 | `pubkeys.rs` integration (BW09/LP07/DL02 self-signed pubkey bundle) | 6 | ✅ |
-| `orgs.rs` integration (M4.0–M4.6: create-org, invite/accept, sync roster, collection CRUD, org-cipher visibility, permissions grant/revoke/max, cipher move round-trip, member removal + key rotation, policies) | 34 | ✅ |
+| `orgs.rs` integration (M4.0–M4.6: create-org, invite/accept, sync roster, collection CRUD, org-cipher visibility, permissions grant/revoke/max, cipher move round-trip, member removal + key rotation, policies) | 46 | ✅ |
 | `register_login.rs` integration | 9 | ✅ |
 | `vault.rs` integration (cipher / folder / sync) | 11 | ✅ |
 | `refresh.rs` integration | 4 | ✅ |
@@ -264,7 +264,8 @@ personal-vault → team → enterprise scope Hekate targets at v1.0.
 | `rotate_keys.rs` integration (M2.26: master-password re-auth, cross-user cipher rejected, non-member org rejected, invalid EncString rejected, refresh tokens revoked, full success path) | 6 | ✅ |
 | `attachments.rs` integration (M2.24: tus discover, full upload+download round-trip, HEAD-resume after partial PATCH, wrong-offset rejection, BLAKE3 mismatch rejection, cross-user denial, unowned-cipher rejection, per-file quota, /sync surfaces attachments + tombstones, terminate, metadata view) | 11 | ✅ |
 | `sends.rs` integration (M2.25: owner CRUD round-trip, public-access decryption with send_key from URL, password gate accept/reject, max-access-count enforcement, expiration enforcement, disable rejection, /sync delta + tombstone, disable→enable round trip, cross-user owner-endpoint isolation) + (M2.25a: full file-Send tus upload + anonymous /blob round trip, blob endpoint rejects unknown token, finalize hash-mismatch rejection, cross-user upload denial, double-upload rejection, password gate blocks token issuance) | 15 | ✅ |
+| `cors.rs` integration (allowlist accept, disallowed origin rejection, preflight on allowed/disallowed origins, tus discovery cross-origin) | 6 | ✅ |
 | `hekate-cli` unit (TTL parser, unlock state-MAC verify, passphrase, ssh-agent, peer TOFU, org bundle canonical, org_sync roster verifier, strict-manifest prefs round-trip + legacy load, send share-URL parser) | 50 | ✅ |
-| **Total** | **385** | ✅ all passing |
+| **Total** | **427** | ✅ all passing |
 
 End-to-end smoke through Docker + Traefik verified each milestone.

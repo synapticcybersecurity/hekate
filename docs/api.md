@@ -10,11 +10,12 @@ Concrete reference for every shipped endpoint, with curl examples. The OpenAPI 3
 - `/web/*` — Hekate web vault, owner mode
 - `/send/*` — Hekate web vault, recipient mode for share URLs (`/send/#/<send_id>/<send_key>`)
 
-**Auth:** `Authorization: Bearer <token>` for all `/api/v1/*` (and `/push/v1/*`) endpoints except `/accounts/register`, `/accounts/prelogin`, `/identity/connect/token`, `/health/*`, and `/`. Two token formats are accepted:
+**Auth:** `Authorization: Bearer <token>` for all `/api/v1/*` (and `/push/v1/*`) endpoints except `/accounts/register`, `/accounts/prelogin`, `/identity/connect/token`, `/users/{user_id}/pubkeys`, `/users/lookup`, `/public/sends/*`, `/health/*`, and `/`. Three token formats are accepted:
 - **Access JWTs** issued by `/identity/connect/token` (1-hour TTL, all scopes implicit).
-- **Personal Access Tokens** (`pmgr_pat_<id>.<secret>`) issued by `/api/v1/account/tokens` (long-lived, explicit scope set).
+- **Personal Access Tokens** (`pmgr_pat_<id>.<secret>`) issued by `/api/v1/account/tokens` (long-lived, explicit scope set, user-scoped).
+- **Service Account Tokens** (`pmgr_sat_<id>.<secret>`) issued by `/api/v1/orgs/{org_id}/service-accounts/{sa_id}/tokens` (long-lived, explicit scope set, org-owned machine identity).
 
-**Scopes:** `vault:read` (GETs + sync + push stream), `vault:write` (cipher/folder mutations), `account:admin` (token management). Interactive JWTs implicitly carry every scope; PATs only carry the scopes listed at creation time. Insufficient scope returns 403.
+**Scopes:** `vault:read` (GETs + sync + push stream), `vault:write` (cipher/folder mutations), `account:admin` (token + webhook + rotate-keys management), plus per-org scopes (`org:read`, `secrets:read`, `secrets:write`, ...) carried by SATs. Interactive JWTs implicitly carry every scope; PATs and SATs only carry the scopes listed at creation time. Insufficient scope returns 403.
 
 **Wire conventions:**
 - Identifiers: UUIDv7 strings.
@@ -132,6 +133,36 @@ Server validates each rewrap target belongs to the caller (cross-user cipher/sen
 What is preserved across this call: the master password, the BW04 manifest signing key (HKDF derives from master_key, which doesn't change), the X25519 keypair (peer TOFU pins keep working), and existing PCKs (cipher field ciphertexts are never re-encrypted — only the wrap of each PCK rotates). What rotates: `account_key`, every wrap that depends on it, every refresh token, the security stamp.
 
 Org-owned cipher PCKs are deliberately untouched: they wrap under the org symmetric key, not the user's account_key.
+
+### `POST /api/v1/account/change-password`
+
+Rotate the master password without rotating the symmetric `account_key`. The KDF salt + master-password hash + signing seed change; the unwrapped `account_key` value is unchanged so every cipher / send / org wrap that already depends on it keeps decrypting. The BW04 vault manifest is wiped server-side because its signing key derives from the master key — next write uploads a fresh genesis under the new key.
+
+Required body:
+
+```json
+{
+  "current_master_password_hash": "<base64-no-pad>",
+  "new_kdf_params": {"alg":"argon2id","m_kib":131072,"t":3,"p":4},
+  "new_kdf_salt": "<base64-std>",
+  "new_master_password_hash": "<base64-no-pad>",
+  "new_protected_account_key": "v3.xc20p....",
+  "new_protected_account_private_key": "v3.xc20p....",
+  "new_account_signing_pubkey": "<32B base64>"
+}
+```
+
+Response: 204. Refresh tokens are revoked; the caller must re-login to obtain a new pair.
+
+### `POST /api/v1/account/delete`
+
+Permanently destroy the account. Required body re-asserts the current master password hash:
+
+```json
+{"master_password_hash": "<base64-no-pad>"}
+```
+
+Cascades: ciphers, folders, attachments (rows + blob tombstones), sends, org memberships (the user is auto-revoked from any orgs they belong to, triggering the standard rotate-on-revoke), 2FA credentials, PATs, refresh tokens, manifest. Returns 204 on success.
 
 ---
 
@@ -295,7 +326,87 @@ Lists subscription metadata (no secrets).
 Removes the subscription. No further events are delivered.
 
 ### `GET /api/v1/account/webhooks/{id}/deliveries` (scope: `account:admin`)
+
 Returns the most recent 50 delivery attempts (newest first). Each item carries `attempts`, `next_attempt_at`, `last_status`, `last_error`, `delivered_at`, `failed_permanently_at`. Useful for diagnosing why a hook isn't firing or for auditing the at-least-once delivery story.
+
+---
+
+## Two-factor authentication (M2.22 + M2.23a)
+
+When 2FA is enabled, `grant_type=password` returns `401` with body `{"error":"two_factor_required","challenge_token":"...","two_factor_providers":[...], "totp":..., "webauthn_challenge":...}`. The client completes a second leg at `/identity/connect/token` with `grant_type=password` plus `challenge_token` + `two_factor_provider` + `two_factor_value`. Refresh grants do not re-prompt — the second factor binds at the password leg only.
+
+Recovery codes are **authentication-only**: they unblock a 2FA challenge but do not decrypt the vault.
+
+### TOTP + recovery codes (M2.22)
+
+```
+POST /api/v1/account/2fa/totp/setup                      — issue a provisional secret + provisioning URI
+POST /api/v1/account/2fa/totp/confirm                    — supply one valid code to finalize enrollment
+POST /api/v1/account/2fa/totp/disable                    — re-asserts master_password_hash
+POST /api/v1/account/2fa/recovery-codes/regenerate       — burns the prior set, returns 10 fresh codes
+GET  /api/v1/account/2fa/status                          — `{enabled, providers, last_used_at}`
+```
+
+Replay defence: TOTP uses ±1-step skew; the highest accepted period is persisted, future codes ≤ that period are refused.
+
+### WebAuthn / FIDO2 (M2.23a)
+
+```
+POST /api/v1/account/2fa/webauthn/register/start              — issues a `PublicKeyCredentialCreationOptions`
+POST /api/v1/account/2fa/webauthn/register/finish             — submits the attestation; binds nickname
+GET  /api/v1/account/2fa/webauthn/credentials                 — list enrolled authenticators
+DELETE /api/v1/account/2fa/webauthn/credentials/{id}          — remove a credential
+PATCH /api/v1/account/2fa/webauthn/credentials/{id}           — rename a credential
+```
+
+The login dance carries `webauthn_challenge` (a `RequestChallengeResponse` from `webauthn-rs`) inside the `two_factor_required` body. Second leg submits the assertion as `two_factor_value`. RP ID + origin come from `HEKATE_WEBAUTHN_RP_ID` / `HEKATE_WEBAUTHN_RP_ORIGIN`.
+
+---
+
+## Public key directory (M2.19 / BW09)
+
+Unauthenticated. The self-signed pubkey bundle (Ed25519 signing key + X25519 wrapping key) is what other clients TOFU-pin via `hekate peer fetch`.
+
+### `GET /api/v1/users/{user_id}/pubkeys`
+
+```json
+{
+  "user_id": "...",
+  "signing_pubkey_b64": "<32B>",
+  "x25519_pubkey_b64": "<32B>",
+  "self_sig_b64": "<64B Ed25519 over canonical(user_id ∥ signing_pk ∥ x25519_pk)>",
+  "fingerprint_b58": "..."
+}
+```
+
+The client verifies `self_sig_b64` under `signing_pubkey_b64` before pinning. A malicious server can refuse to serve a bundle but cannot forge a valid signature without the user's signing key.
+
+### `GET /api/v1/users/lookup?email=<email>`
+
+Maps an email to its bundled `user_id`. Same enumeration-protection posture as `/accounts/prelogin` — unknown emails return a deterministic-fake row so timing + response shape doesn't reveal account existence.
+
+---
+
+## Vault manifest (BW04 — M2.15c)
+
+Per-user signed manifest of `(cipher_id, revision_date, deleted, attachments_root)` tuples; signed with Ed25519 derived from the master key via HKDF (`pmgr-sign-v1`). Detects server drops, replays, resurrections, and attachment-set tampering.
+
+### `POST /api/v1/vault/manifest`
+
+```json
+{
+  "version": 12,
+  "parent_canonical_sha256_b64": "<32B, all-zero for genesis>",
+  "canonical_b64": "<DST || version || parent_hash || entries ...>",
+  "signature_b64": "<64B Ed25519>"
+}
+```
+
+Server enforces strictly-greater `version` and that `parent_canonical_sha256_b64` matches the SHA-256 of the currently-stored canonical bytes. Forked or rolled-back chains return 409.
+
+### `GET /api/v1/vault/manifest`
+
+Returns the currently-stored manifest. Clients cross-check every cipher in `/sync` against the entries; mismatches surface as ⚠ warnings (or block in strict-manifest mode).
 
 ---
 
@@ -352,6 +463,27 @@ Sets `deleted_date`. Cipher is still readable. **204** on success.
 
 ### `POST /api/v1/ciphers/{id}/restore`
 Clears `deleted_date`. **200** with restored cipher view.
+
+### `POST /api/v1/ciphers/{id}/move-to-org` (scope: `vault:write`, `If-Match` required)
+
+Move a personal cipher into an org. The client re-wraps the cipher's PCK under the org symmetric key, optionally re-keys, and lists the target collection set:
+
+```json
+{
+  "org_id": "...",
+  "collection_ids": ["..."],
+  "protected_cipher_key": "v3.xc20p....",
+  "name": "v3.xc20p....",
+  "data": "v3.xc20p....",
+  "notes": "v3.xc20p...."
+}
+```
+
+Server validates the caller has `manage` on every target collection. Returns the moved cipher view. AAD on every field now binds `org_id` so the server cannot move the cipher between orgs by rewriting the column.
+
+### `POST /api/v1/ciphers/{id}/move-to-personal` (scope: `vault:write`, `If-Match` required)
+
+Reverse direction: re-wrap the PCK under the caller's account key, remove from every collection, clear `org_id`. Required body shape mirrors `move-to-org` minus `org_id` / `collection_ids`.
 
 ### `DELETE /api/v1/ciphers/{id}/permanent` — hard delete + tombstone
 Removes the row and writes a tombstone so the next `/sync` informs other devices. **204** on success.
@@ -608,6 +740,116 @@ hekate send disable <id> | hekate send enable <id>     # toggle public access
 hekate send open <url> [--password X] [-o out]         # recipient-side fetch + decrypt;
                                                      #   text -> stdout, file -> writes -o (default: original filename)
 ```
+
+---
+
+## Organizations (M4)
+
+Every membership claim is signed by the org's Ed25519 signing key (BW08); every cross-client wrap is signcryption to a TOFU-pinned X25519 pubkey (BW09 / LP07 / DL02). Cipher-collection assignments inherit per-member effective permissions (`read` / `read_hide_passwords` / `manage`).
+
+Role enum: `owner` / `admin` / `user`. M4 v1 ships a single signer per org (the owner); see [`m4-organizations.md`](m4-organizations.md) for the wire shapes and threat model.
+
+### Lifecycle
+
+```
+POST   /api/v1/orgs                                   — create org + genesis roster
+GET    /api/v1/account/orgs                           — list orgs the caller belongs to
+GET    /api/v1/orgs/{org_id}                          — name + role + roster + active policies
+```
+
+Create-org body carries `id` (client-supplied UUIDv7), `name`, `signing_pubkey`, `bundle_sig` (Ed25519 over canonical `(org_id, name, signing_pubkey, owner_user_id)`), `protected_signing_seed` (EncString under owner's account_key), `org_sym_key_id`, `owner_protected_org_key`, and the genesis `roster` (version 1, parent = all-zeros).
+
+### Invites + acceptance (M4.1)
+
+```
+POST   /api/v1/orgs/{org_id}/invites                              — owner-only; signcryption envelope to invitee
+GET    /api/v1/account/invites                                    — list pending invites for the caller
+DELETE /api/v1/orgs/{org_id}/invites/{invitee_user_id}            — owner-only; cancel a pending invite
+POST   /api/v1/orgs/{org_id}/accept                               — invitee submits {protected_org_key, org_sym_key_id}
+```
+
+Invite body: `{invitee_user_id, role, envelope: SealedEnvelope, next_roster}`. Server validates the next-roster signature + parent chain + version monotonicity, but cannot validate the envelope contents (those are encrypted to the invitee).
+
+### Roster + member management (M4.2 + M4.5b)
+
+```
+POST   /api/v1/orgs/{org_id}/members/{user_id}/revoke   — remove member + rotate org sym key
+POST   /api/v1/orgs/{org_id}/rotate-confirm             — remaining members consume their fresh envelope
+POST   /api/v1/orgs/{org_id}/prune-roster               — recover from a pre-GH#2 roster orphan
+```
+
+Revoke body: `{next_roster, next_org_sym_key_id, rewraps: [{user_id, envelope}], cipher_key_rewraps: [{cipher_id, new_protected_cipher_key}], collection_name_rewraps: [{collection_id, new_name}]}`. Server enforces that `rewraps` covers every remaining member and that the next roster + key id are valid and forward-chained. The revoked member's `protected_org_key` row is dropped so subsequent reads return 401.
+
+`rotate-confirm` is the receiver-side counterpart: each remaining member opens their pending envelope (signcryption verify under the owner's pinned signing key), derives a fresh `protected_org_key` wrapped under their own account_key, and submits it.
+
+### Collections (M4.3 + M4.4)
+
+```
+POST   /api/v1/orgs/{org_id}/collections                                              — create
+GET    /api/v1/orgs/{org_id}/collections                                              — list
+DELETE /api/v1/orgs/{org_id}/collections/{collection_id}                              — delete
+GET    /api/v1/orgs/{org_id}/collections/{collection_id}/members                      — list members + permissions
+PUT    /api/v1/orgs/{org_id}/collections/{collection_id}/members/{user_id}            — grant permission
+DELETE /api/v1/orgs/{org_id}/collections/{collection_id}/members/{user_id}            — revoke permission
+```
+
+Collection names travel as `EncString` under the org symmetric key with AAD `(collection_id, org_id)`. Permission enum: `"read" | "read_hide_passwords" | "manage"`. Server enforces `read` server-side (refuses PUT/DELETE against the cipher); `read_hide_passwords` is a client hint surfaced in `/sync` per-cipher.
+
+### Org cipher manifest (M2.21 — per-org BW04 analogue)
+
+Per-org signed manifest of org-owned ciphers; only the owner can sign in M4 v1. Non-owner writes leave the manifest stale until the owner refreshes (`hekate org cipher-manifest refresh`).
+
+```
+POST   /api/v1/orgs/{org_id}/cipher-manifest      — owner uploads canonical_b64 + signature_b64
+GET    /api/v1/orgs/{org_id}/cipher-manifest      — fetch the latest manifest
+```
+
+### Org policies (M4.6)
+
+```
+GET    /api/v1/orgs/{org_id}/policies                       — list (owner can read every policy; members see their own enforced set)
+PUT    /api/v1/orgs/{org_id}/policies/{policy_type}         — owner-only; enable + configure
+DELETE /api/v1/orgs/{org_id}/policies/{policy_type}         — owner-only; disable
+```
+
+Policy types stored as JSONB so new policy kinds don't need migrations. Shipped today: `master_password_complexity`, `vault_timeout`, `password_generator`, `single_org`, `restrict_send`. `single_org` is enforced server-side (refuses second-org accept when the caller's existing membership has it enabled); the rest are client-enforced hints surfaced in `/sync`.
+
+### CLI quick reference
+
+```bash
+hekate org create --name "ACME"
+hekate org list
+hekate org invite <org_id> <peer_user_id> [--role admin|user]
+hekate org invites                                  # pending invites for the caller
+hekate org accept <org_id>
+hekate org cancel-invite <org_id> <peer_user_id>
+hekate org remove-member <org_id> <user_id>          # M4.5b: rotation + rewrap envelopes
+hekate org collection create <org_id> --name X
+hekate org collection {list,delete,grant,revoke,members} ...
+hekate org policy {set,get,list,unset} <org_id> <policy_type>
+hekate org cipher-manifest refresh <org_id>
+hekate move-to-org <cipher_id> <org_id>
+hekate move-to-personal <cipher_id>
+```
+
+---
+
+## Service accounts (M2.5)
+
+Org-scoped machine identities. Owned by an organization and managed by org owners; the SA itself authenticates via `pmgr_sat_<id>.<secret>` tokens.
+
+```
+POST   /api/v1/orgs/{org_id}/service-accounts                                  — owner-only; create SA
+GET    /api/v1/orgs/{org_id}/service-accounts                                  — owner-only; list
+POST   /api/v1/orgs/{org_id}/service-accounts/{sa_id}/disable                  — owner-only
+DELETE /api/v1/orgs/{org_id}/service-accounts/{sa_id}                          — owner-only; cascades to tokens
+POST   /api/v1/orgs/{org_id}/service-accounts/{sa_id}/tokens                   — owner-only; issue a SAT
+GET    /api/v1/orgs/{org_id}/service-accounts/{sa_id}/tokens                   — owner-only; list tokens
+DELETE /api/v1/orgs/{org_id}/service-accounts/{sa_id}/tokens/{token_id}        — owner-only; revoke a single SAT
+GET    /api/v1/service-accounts/me                                             — SAT-authenticated introspection
+```
+
+Tokens carry explicit scopes (`org:read`, `secrets:read`, `secrets:write`, ...) and a configurable expiry. The M6 Secrets Manager will add the `secrets:*` scope-check call sites; today the routes simply accept the scope set as the SA's effective authorization.
 
 ---
 

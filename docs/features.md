@@ -25,7 +25,9 @@ planned but not built), see [`status.md`](status.md).
 
 - Cipher CRUD with soft-delete + restore + permanent-purge +
   tombstone-based delta sync.
-- Five cipher types: login, secure note, card, identity, SSH key.
+- Six cipher types creatable: login, secure note, card, identity,
+  SSH key, TOTP. An additional API-key type (7) is imported from
+  other vaults and rendered read-only by the popup.
 - Folders.
 - TOTP entries inline in the vault (CLI + popup show countdown
   codes; web vault decodes alongside the cipher detail).
@@ -47,7 +49,14 @@ planned but not built), see [`status.md`](status.md).
   member's account_key, collections with encrypted names (AAD-bound
   to `(collection_id, org_id)`), member roles (owner / admin / user),
   permission matrix (`read` / `read_hide_passwords` / `manage`),
-  owner-only key rotation with member rewrap envelopes.
+  owner-only key rotation with member rewrap envelopes,
+  receiver-side rotate-confirm consumption, `prune-roster` recovery
+  for pre-GH#2 roster orphans.
+- **Cipher movement** — `move-to-org` (re-wrap PCK under org sym
+  key, assign to collections) and `move-to-personal` (re-wrap PCK
+  under account_key, drop from every collection). `org_id` is bound
+  into the cipher AAD so the server cannot move ciphers between
+  orgs by rewriting the column.
 
 ## Imports
 
@@ -85,8 +94,13 @@ vault picks them up via the same projection.
 ## Server features
 
 - Postgres (multi-tenant) or SQLite (single-binary mode).
-- Server-side push (SSE): popup + CLI consume `cipher.changed` etc.
-  events for live refresh.
+- Server-side push (SSE): popup + CLI consume `cipher.changed`,
+  `cipher.deleted`, `cipher.tombstoned`, `folder.changed`,
+  `folder.tombstoned`, `attachment.changed`, `attachment.tombstoned`,
+  `send.changed`, `send.tombstoned` events for live refresh.
+- Background GC worker: 60-second tick drains attachment blob
+  tombstones, prunes expired tus uploads, expires past-deletion Sends
+  + their blobs.
 - Outbound webhooks with HMAC signatures + persistent retry queue.
 - BW04 signed vault manifest v3 (per-cipher `attachments_root`
   binding so the manifest commits to the attachment set).
