@@ -1,4 +1,4 @@
-# pmgr — SSH agent
+# Hekate — SSH agent
 
 `hekate ssh-agent` is a local SSH agent backed by the user's stored
 ssh-key ciphers. It speaks OpenSSH's agent protocol verbatim, so any
@@ -26,7 +26,7 @@ the agent's Unix socket.
    ```
 
    The private key is an OpenSSH PEM blob (`-----BEGIN OPENSSH
-   PRIVATE KEY-----` … `-----END OPENSSH PRIVATE KEY-----`). pmgr
+   PRIVATE KEY-----` … `-----END OPENSSH PRIVATE KEY-----`). Hekate
    parses it client-side, throws away the plaintext, and stores
    only the EncString-wrapped ciphertext under your account key.
 

@@ -388,7 +388,7 @@ These don't surface to end users but block all of the above:
   or delete the SQLite file from the `hekate_data` volume.
 
 - The CLI volume (`hekate_cli_state`) holds a single session at a
-  time. When you switch CLI users, run `make pmgr ARGS="logout"`
+  time. When you switch CLI users, run `make hekate ARGS="logout"`
   first or the new register/login fails with "local state already
   exists."
 

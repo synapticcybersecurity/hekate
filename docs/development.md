@@ -120,7 +120,7 @@ error: could not compile `hekate-server` (test "rotate_keys") due to 1 previous 
 ## Configuration
 
 `hekate-server` reads config in this order (later overrides earlier):
-1. `pmgr.toml` if present in the working directory
+1. `hekate.toml` if present in the working directory
 2. `HEKATE_*` environment variables
 
 Keys:
@@ -128,9 +128,9 @@ Keys:
 | Key | Default | Notes |
 |---|---|---|
 | `HEKATE_LISTEN` | `0.0.0.0:8080` | bind address |
-| `HEKATE_DATABASE_URL` | `sqlite:///data/pmgr.sqlite?mode=rwc` | `sqlite://path` or `postgres://user:pw@host/db` |
+| `HEKATE_DATABASE_URL` | `sqlite:///data/hekate.sqlite?mode=rwc` | `sqlite://path` or `postgres://user:pw@host/db` |
 | `HEKATE_FAKE_SALT_PEPPER` | random per process | base64-no-pad. Set explicitly in production for stable prelogin responses across restarts. |
-| `RUST_LOG` | `info,pmgr_server=debug,sqlx=warn` | tracing filter |
+| `RUST_LOG` | `info,hekate_server=debug,sqlx=warn` | tracing filter |
 | `HEKATE_WEB_DIR` | `None` (dev) / `/app/web-dist` (prod image) | Filesystem root for the bundled SolidJS web vault. When set, `hekate-server` serves the SPA at `/web/*` (owner mode) and `/send/*` (recipient mode for share links). When unset, both prefixes serve a small placeholder page. |
 | `HEKATE_ATTACHMENTS_DIR` | `/data/attachments` | Filesystem root for the local-FS blob backend (M2.24). Created on bootstrap if missing. Cloud deployments will swap to S3 in M2.24a. |
 | `HEKATE_WEBAUTHN_RP_ID` | `hekate.localhost` | Relying-party ID for FIDO2 passkeys (M2.23). Must match the eTLD+1 of the browser-facing origin. Self-host: set to your domain. |
@@ -142,7 +142,7 @@ Keys:
 - The migration files must be **portable across SQLite and Postgres** — stick to TEXT columns for IDs/timestamps, `INTEGER` for booleans, and avoid driver-specific syntax. Defaults like `CURRENT_TIMESTAMP` format differently across drivers; prefer setting timestamps explicitly from chrono RFC3339 in handlers.
 - Enable `EXPLAIN`-time access from the dev shell:
   ```
-  docker compose exec postgres psql -U pmgr -d pmgr
+  docker compose exec postgres psql -U hekate -d hekate
   ```
 
 ## Adding a new endpoint
