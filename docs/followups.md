@@ -18,6 +18,37 @@ verification. Not for milestone-level status (that's
   strong-mode policy bool, audit + alerting events. Multi-owner
   invariant enforced at org-create.
 
+- **Web vault import — D.2 / D.3 / D.4 (issue #5).** D.1
+  (Bitwarden JSON) shipped 2026-05-16. Three slices left, each
+  un-gates one of the currently CLI-only crates for the wasm32
+  target and adds a parser export to `wasm.rs`:
+    - **D.2 — LastPass CSV.** Un-gate `csv` crate, add
+      `parseLastpassCsv`. UI gains CSV to the format selector;
+      commit pipeline is unchanged.
+    - **D.3 — 1Password 1PUX.** Un-gate `zip` crate (verify
+      default features don't pull a non-WASM compression
+      backend; likely needs `default-features = false` +
+      explicit `deflate`). Add `parse1passwordZip`. UI accepts
+      `.1pux`.
+    - **D.4 — KeePass KDBX.** Un-gate `keepass` crate (highest
+      dep risk — flag if it doesn't compile to wasm32). Add
+      `parseKeepassKdbx`. UI gains a master-password prompt step
+      before the dry-run preview.
+
+  Parsing must stay client-side regardless of format — KDBX
+  takes a separate master password that mustn't hit the server,
+  and the other two are plaintext export blobs that would
+  otherwise break the zero-knowledge posture. The SPA commit
+  pipeline (`Import.tsx`) is already format-agnostic; each
+  slice extends the upload-phase format radio + dispatches to
+  the right WASM binding, then reuses the same folder/cipher
+  loop and BW04 re-sign.
+
+- **Extension popup shortcut for import (issue #5).** Once D.1
+  is shipped, the extension's "Import" entry point becomes a
+  popup button that opens `/web/import` in a new tab. No parser
+  code in the extension itself — the SPA handles everything.
+
 ## Deferred to a future managed-service offering
 
 These features are not on the OSS roadmap. They sit in a future

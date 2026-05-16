@@ -64,8 +64,15 @@ Bitwarden JSON · 1Password 1PUX · KeePass KDBX · LastPass CSV.
 Pure-parser projection onto a shared `ProjectedImport` shape — folders
 materialize first, ciphers thread the new server-side folder ids,
 custom fields fold into notes, unsupported categories surface
-per-row warnings. CLI-only entry point today (`hekate import …`); web
-vault picks them up via the same projection.
+per-row warnings. The Bitwarden parser maps the five exported
+item types (login / secure_note / card / identity / ssh-key) onto
+Hekate's matching cipher shapes.
+
+CLI: `hekate import …` covers all four formats. Web vault: Settings
+→ Import surfaces a graphical Bitwarden JSON flow via a WASM-bound
+parser (parsing happens in the browser; the export blob never
+uploads). CSV / 1Password / KeePass web-vault surfaces are queued —
+see [`followups.md`](followups.md).
 
 ## Auth + 2FA
 

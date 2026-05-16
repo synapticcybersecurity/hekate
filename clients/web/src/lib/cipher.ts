@@ -32,6 +32,14 @@ export function aadCipherData(cipherId: string, cipherType: number): Uint8Array 
   return enc.encode(`pmgr-cipher-data-v2:${cipherId}:${cipherType}`);
 }
 
+/** AAD for the encrypted folder name. Folder rows have no type/id
+ *  binding (the server allocates the id after encryption), so the
+ *  AAD is a fixed sentinel. Mirrors `hekate-cli::commands::import::
+ *  folder_name_aad`. */
+export function aadFolderName(): Uint8Array {
+  return enc.encode("pmgr-folder-name-v1");
+}
+
 /* Cipher-type IDs (mirror hekate-core::cipher::CipherType + popup.js
  * iconForCipherType). The CLI/server use numeric ids on the wire. */
 export const CipherType = {

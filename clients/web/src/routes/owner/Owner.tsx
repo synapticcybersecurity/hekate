@@ -38,6 +38,7 @@ import { RotateKeys } from "./RotateKeys";
 import { TwoFactor } from "./TwoFactor";
 import { CipherDetail } from "./CipherDetail";
 import { EditCipher } from "./EditCipher";
+import { Import } from "./Import";
 import { NewFileSend } from "./NewFileSend";
 import { NewTextSend } from "./NewTextSend";
 import { OrgDetail } from "./OrgDetail";
@@ -79,6 +80,7 @@ type SubView =
   | { kind: "two-factor" }
   | { kind: "change-password" }
   | { kind: "account-export" }
+  | { kind: "import" }
   | { kind: "peer-pins" }
   | { kind: "delete-account" }
   | { kind: "create-org" }
@@ -350,6 +352,15 @@ export function Owner() {
               }}
             />
           </Match>
+          <Match when={view().kind === "import"}>
+            <Import
+              onBack={() => {
+                setTab("settings");
+                setView({ kind: "list" });
+              }}
+              onImported={() => setReloadKey(reloadKey() + 1)}
+            />
+          </Match>
           <Match when={view().kind === "peer-pins"}>
             <PeerPins
               onBack={() => {
@@ -430,6 +441,7 @@ export function Owner() {
               onManageTwoFactor={() => setView({ kind: "two-factor" })}
               onChangePassword={() => setView({ kind: "change-password" })}
               onAccountExport={() => setView({ kind: "account-export" })}
+              onImport={() => setView({ kind: "import" })}
               onPeerPins={() => setView({ kind: "peer-pins" })}
               onDeleteAccount={() => setView({ kind: "delete-account" })}
               onSessionExpired={onSessionExpired}
@@ -459,6 +471,7 @@ interface UnlockedShellProps {
   onManageTwoFactor: () => void;
   onChangePassword: () => void;
   onAccountExport: () => void;
+  onImport: () => void;
   onPeerPins: () => void;
   onDeleteAccount: () => void;
   onSessionExpired: () => void;
@@ -526,6 +539,7 @@ function UnlockedShell(props: UnlockedShellProps) {
             onManageTwoFactor={props.onManageTwoFactor}
             onChangePassword={props.onChangePassword}
             onAccountExport={props.onAccountExport}
+            onImport={props.onImport}
             onPeerPins={props.onPeerPins}
             onDeleteAccount={props.onDeleteAccount}
           />
@@ -543,6 +557,7 @@ function SettingsTab(props: {
   onManageTwoFactor: () => void;
   onChangePassword: () => void;
   onAccountExport: () => void;
+  onImport: () => void;
   onPeerPins: () => void;
   onDeleteAccount: () => void;
 }) {
@@ -678,6 +693,21 @@ function SettingsTab(props: {
         </p>
         <button class="btn btn-secondary" onClick={props.onAccountExport}>
           Export account…
+        </button>
+      </div>
+
+      <div class="card">
+        <p style="margin: 0 0 0.5rem;">
+          <strong>Import</strong>
+        </p>
+        <p class="muted" style="margin: 0 0 0.75rem; font-size: 0.85rem;">
+          Bring items in from another password manager. Bitwarden
+          (unencrypted JSON) today; CSV, 1Password, and KeePass land
+          in follow-ups. Parsing happens in your browser — the export
+          file is not uploaded to the server.
+        </p>
+        <button class="btn btn-secondary" onClick={props.onImport}>
+          Import items…
         </button>
       </div>
 

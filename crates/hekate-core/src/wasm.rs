@@ -1057,6 +1057,21 @@ pub fn passkey_sign_assertion(
     .map_err(js_err)
 }
 
+/// Parse a Bitwarden unencrypted JSON export and project it onto
+/// hekate's plaintext cipher model. Returns `{ folders, ciphers,
+/// warnings }` (camelCased fields) ready for the SPA's commit loop.
+/// Refuses encrypted Bitwarden exports — the caller should ask the
+/// user to re-export as "JSON (unencrypted)".
+///
+/// Mirrors `import_bitwarden::{parse_export, project}`. Pure
+/// in-memory; no I/O, no crypto.
+#[wasm_bindgen(js_name = parseBitwardenJson)]
+pub fn parse_bitwarden_json(json: &str) -> Result<JsValue, JsValue> {
+    let exp = crate::import_bitwarden::parse_export(json).map_err(js_err)?;
+    let projected = crate::import_bitwarden::project(&exp);
+    serde_wasm_bindgen::to_value(&projected).map_err(js_err)
+}
+
 /// CBOR-encode an ES256 (P-256) public key as a COSE_Key map. Embedded
 /// verbatim in WebAuthn's attestedCredentialData as the
 /// `credentialPublicKey`. Input is the 65-byte uncompressed SEC1

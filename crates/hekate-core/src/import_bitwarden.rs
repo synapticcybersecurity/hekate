@@ -52,10 +52,18 @@
 //! - `reprompt` — hekate v2 moved this into encrypted data per BW04
 //!   mitigation; reading back from a Bitwarden export with
 //!   `reprompt: 1` is an obsolete code path on our side.
-//! - Secret types Bitwarden doesn't have (ssh-key, totp-only) —
-//!   not present in the export, no mapping needed.
+//! - TOTP-only items — Bitwarden stores TOTP inside login items
+//!   (`login.totp`); standalone TOTP entries aren't a thing in
+//!   Bitwarden's export schema.
+//!
+//! ## What we map
+//!
+//! Types 1 (login) / 2 (secure note) / 3 (card) / 4 (identity) /
+//! 5 (SSH key) project onto hekate's matching cipher types. The
+//! field names on the SSH-key body (`publicKey`, `privateKey`,
+//! `keyFingerprint`) line up verbatim with hekate's `SshKeyData`.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
@@ -80,8 +88,7 @@ pub struct BitwardenFolder {
 
 #[derive(Debug, Deserialize)]
 pub struct BitwardenItem {
-    /// 1=login, 2=secureNote, 3=card, 4=identity. We drop ssh-key
-    /// (5) and others Bitwarden never exports.
+    /// 1=login, 2=secureNote, 3=card, 4=identity, 5=sshKey.
     #[serde(rename = "type")]
     pub item_type: i32,
     pub name: String,
@@ -100,6 +107,8 @@ pub struct BitwardenItem {
     pub card: Option<BitwardenCard>,
     #[serde(default)]
     pub identity: Option<BitwardenIdentity>,
+    #[serde(rename = "sshKey", default)]
+    pub ssh_key: Option<BitwardenSshKey>,
 
     /// Custom fields — appended to notes if present.
     #[serde(default)]
@@ -177,6 +186,16 @@ pub struct BitwardenIdentity {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct BitwardenSshKey {
+    #[serde(rename = "publicKey", default)]
+    pub public_key: Option<String>,
+    #[serde(rename = "privateKey", default)]
+    pub private_key: Option<String>,
+    #[serde(rename = "keyFingerprint", default)]
+    pub key_fingerprint: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct BitwardenField {
     pub name: String,
     /// Bitwarden also has `type` (0 text, 1 hidden, 2 boolean, 3
@@ -208,7 +227,8 @@ pub fn parse_export(json: &str) -> Result<BitwardenExport> {
 /// Mirror of `hekate-cli::commands::add::PlainCipher` plus the inputs
 /// the encryption layer needs (folder name → server folder id is
 /// resolved by the CLI). Pure plaintext — must NOT be persisted.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportedCipher {
     /// 1=login, 2=secure_note, 3=card, 4=identity. Bitwarden's
     /// numbering happens to match hekate's for these four types.
@@ -278,7 +298,8 @@ pub fn project(export: &BitwardenExport) -> ProjectedImport {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectedImport {
     /// Distinct folder names, preserving export order. Duplicates are
     /// kept (rare in real exports; the CLI dedupes server-side via
@@ -415,8 +436,36 @@ fn project_item(item: &BitwardenItem) -> std::result::Result<ImportedCipher, Str
                 bitwarden_folder_id: item.folder_id.clone(),
             })
         }
+        5 => {
+            let s = item
+                .ssh_key
+                .as_ref()
+                .ok_or_else(|| "type=5 (ssh-key) but no `sshKey` object".to_string())?;
+            // hekate's SshKeyData field names line up verbatim
+            // (publicKey, privateKey, keyFingerprint) — same shape
+            // Bitwarden ships in the export, so the mapping is
+            // identity for non-empty fields.
+            let mut data = serde_json::Map::new();
+            if let Some(v) = s.public_key.as_deref().filter(|v| !v.is_empty()) {
+                data.insert("publicKey".into(), serde_json::Value::String(v.into()));
+            }
+            if let Some(v) = s.private_key.as_deref().filter(|v| !v.is_empty()) {
+                data.insert("privateKey".into(), serde_json::Value::String(v.into()));
+            }
+            if let Some(v) = s.key_fingerprint.as_deref().filter(|v| !v.is_empty()) {
+                data.insert("keyFingerprint".into(), serde_json::Value::String(v.into()));
+            }
+            Ok(ImportedCipher {
+                cipher_type: 5,
+                name: item.name.clone(),
+                notes: merged_notes,
+                data_json: serde_json::Value::Object(data).to_string(),
+                favorite: item.favorite,
+                bitwarden_folder_id: item.folder_id.clone(),
+            })
+        }
         other => Err(format!(
-            "unsupported Bitwarden item type {other} (only 1=login, 2=note, 3=card, 4=identity)"
+            "unsupported Bitwarden item type {other} (only 1=login, 2=note, 3=card, 4=identity, 5=ssh-key)"
         )),
     }
 }
@@ -665,6 +714,70 @@ mod tests {
         assert_eq!(data["password"], "p");
         assert!(data.get("uri").is_none());
         assert!(data.get("username").is_none());
+    }
+
+    #[test]
+    fn ssh_key_projection_maps_field_names_verbatim() {
+        let json = r#"{
+          "encrypted": false,
+          "folders": [],
+          "items": [{
+            "type":5, "name":"my workstation key",
+            "notes":"work laptop",
+            "sshKey":{
+              "publicKey":"ssh-ed25519 AAAA…test user@host",
+              "privateKey":"-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----",
+              "keyFingerprint":"SHA256:redacted"
+            }
+          }]
+        }"#;
+        let p = project(&parse_export(json).unwrap());
+        assert_eq!(p.ciphers.len(), 1);
+        let c = &p.ciphers[0];
+        assert_eq!(c.cipher_type, 5);
+        assert_eq!(c.notes.as_deref(), Some("work laptop"));
+        let data: serde_json::Value = serde_json::from_str(&c.data_json).unwrap();
+        assert_eq!(data["publicKey"], "ssh-ed25519 AAAA…test user@host");
+        assert!(data["privateKey"]
+            .as_str()
+            .unwrap()
+            .starts_with("-----BEGIN OPENSSH"));
+        assert_eq!(data["keyFingerprint"], "SHA256:redacted");
+    }
+
+    #[test]
+    fn ssh_key_with_missing_sshkey_object_is_skipped_with_warning() {
+        let json = r#"{
+          "encrypted": false,
+          "folders": [],
+          "items": [{"type":5, "name":"malformed"}]
+        }"#;
+        let p = project(&parse_export(json).unwrap());
+        assert_eq!(p.ciphers.len(), 0);
+        assert!(p
+            .warnings
+            .iter()
+            .any(|w| w.contains("malformed") && w.contains("sshKey")));
+    }
+
+    #[test]
+    fn ssh_key_drops_empty_string_fields() {
+        // Bitwarden sometimes exports empty strings for fields the user
+        // never filled in — those should not survive into the projected
+        // data so the SPA's edit form doesn't show empty rows.
+        let json = r#"{
+          "encrypted": false,
+          "folders": [],
+          "items": [{
+            "type":5, "name":"public-only",
+            "sshKey":{"publicKey":"ssh-ed25519 AAAA…", "privateKey":"", "keyFingerprint":""}
+          }]
+        }"#;
+        let p = project(&parse_export(json).unwrap());
+        let data: serde_json::Value = serde_json::from_str(&p.ciphers[0].data_json).unwrap();
+        assert_eq!(data["publicKey"], "ssh-ed25519 AAAA…");
+        assert!(data.get("privateKey").is_none());
+        assert!(data.get("keyFingerprint").is_none());
     }
 
     #[test]

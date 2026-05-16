@@ -342,4 +342,42 @@ export interface HekateCore {
    *  enrollment so users can scan with their authenticator app — most
    *  apps don't accept the otpauth:// URI as text. */
   qrCodeSvg(text: string): string;
+
+  // ---------------------------------------------------------------------
+  // Imports (web vault — D.1+)
+  // ---------------------------------------------------------------------
+
+  /** Parse a Bitwarden unencrypted JSON export and project it onto
+   *  hekate's plaintext cipher model. Throws (with a human-readable
+   *  message) on malformed JSON or encrypted exports. The orchestrator
+   *  is responsible for creating folders, generating per-cipher keys,
+   *  encrypting fields, and re-signing the BW04 manifest. */
+  parseBitwardenJson(json: string): ProjectedImport;
+}
+
+/* ---------------------------------------------------------------------
+ * Import projection shape (mirrors `hekate-core::import_bitwarden`)
+ * ------------------------------------------------------------------- */
+
+export interface ImportedCipher {
+  /** 1=login, 2=secure_note, 3=card, 4=identity. */
+  cipherType: number;
+  name: string;
+  notes: string | null;
+  /** Type-specific data as a JSON-encoded object string (e.g. for a
+   *  login: `{"username":"…","password":"…","uri":"…","totp":"…"}`).
+   *  The orchestrator parses this before passing to `saveCipher`. */
+  dataJson: string;
+  favorite: boolean;
+  /** Resolved folder *name* (the Bitwarden parser rewrites the export's
+   *  opaque folder id to the name during projection). The orchestrator
+   *  looks this up in the server-folder map to thread the freshly-
+   *  allocated server folder id onto each cipher. */
+  bitwardenFolderId: string | null;
+}
+
+export interface ProjectedImport {
+  folders: string[];
+  ciphers: ImportedCipher[];
+  warnings: string[];
 }

@@ -12,7 +12,7 @@
  * (drop / replay / forked-chain detection) is a follow-up; this file
  * only does the signature step.
  */
-import { authedFetch, apiGet } from "./api";
+import { ApiError, authedFetch, apiGet } from "./api";
 import { b64decode, b64encode, b64urlDecode } from "./base64";
 import { getSession } from "./session";
 import { loadHekateCore } from "../wasm";
@@ -75,56 +75,68 @@ function messageOf(err: unknown): string {
  * Mirrors clients/extension/popup/popup.js:731-762 (`syncAndUploadManifest`).
  * Called after every successful cipher write so the signed manifest
  * version increments and the server's "latest" record stays in sync
- * with the cipher set the user just modified. Failures here are
- * non-fatal — the cipher write already succeeded; a stale manifest
- * just means the next sync will surface a "manifest stale" warning
- * until the next write resyncs.
+ * with the cipher set the user just modified.
+ */
+export async function uploadManifest(): Promise<void> {
+  const session = getSession();
+  if (!session) throw new Error("manifest upload skipped: no session");
+
+  const sync = await apiGet<SyncResponse>("/api/v1/sync");
+  const hekate = await loadHekateCore();
+
+  const entries = sync.changes.ciphers.map((c) => ({
+    cipherId: c.id,
+    revisionDate: c.revision_date,
+    deleted: !!c.deleted_date,
+  }));
+
+  let nextVersion = 1;
+  let parentHash = new Uint8Array(32); // genesis = all zeros
+  if (sync.manifest) {
+    nextVersion = sync.manifest.version + 1;
+    // Copy into a fresh Uint8Array so its underlying buffer is
+    // typed as ArrayBuffer (TS strict-DOM rejects the wider
+    // `ArrayBufferLike` shape that wasm-bindgen returns).
+    parentHash = new Uint8Array(
+      hekate.sha256(b64decode(sync.manifest.canonical_b64)),
+    );
+  }
+
+  const signed = hekate.signManifestCanonical(session.signingSeed, {
+    version: nextVersion,
+    timestamp: new Date().toISOString(),
+    parentCanonicalSha256: parentHash,
+    entries,
+  });
+
+  const r = await authedFetch("POST", "/api/v1/vault/manifest", {
+    body: {
+      version: nextVersion,
+      canonical_b64: b64encode(signed.canonicalBytes),
+      signature_b64: b64encode(signed.signature),
+    },
+  });
+  if (!r.ok) {
+    let body: unknown = null;
+    try {
+      body = await r.json();
+    } catch {
+      /* empty / non-JSON */
+    }
+    throw new ApiError(r.status, `${r.status} ${r.statusText}`, body);
+  }
+}
+
+/* Non-throwing wrapper for the per-cipher-write hot path. Failures
+ * here are non-fatal — the cipher write already succeeded; a stale
+ * manifest just means the next sync will surface a "manifest stale"
+ * warning until the next write resyncs. Bulk callers (imports,
+ * rotations) should use `uploadManifest` directly with a retry
+ * wrapper so transient 429s don't silently swallow the BW04 update.
  */
 export async function uploadManifestQuiet(): Promise<void> {
   try {
-    const session = getSession();
-    if (!session) {
-      console.warn("manifest upload skipped: no session");
-      return;
-    }
-    const sync = await apiGet<SyncResponse>("/api/v1/sync");
-    const hekate = await loadHekateCore();
-
-    const entries = sync.changes.ciphers.map((c) => ({
-      cipherId: c.id,
-      revisionDate: c.revision_date,
-      deleted: !!c.deleted_date,
-    }));
-
-    let nextVersion = 1;
-    let parentHash = new Uint8Array(32); // genesis = all zeros
-    if (sync.manifest) {
-      nextVersion = sync.manifest.version + 1;
-      // Copy into a fresh Uint8Array so its underlying buffer is
-      // typed as ArrayBuffer (TS strict-DOM rejects the wider
-      // `ArrayBufferLike` shape that wasm-bindgen returns).
-      parentHash = new Uint8Array(
-        hekate.sha256(b64decode(sync.manifest.canonical_b64)),
-      );
-    }
-
-    const signed = hekate.signManifestCanonical(session.signingSeed, {
-      version: nextVersion,
-      timestamp: new Date().toISOString(),
-      parentCanonicalSha256: parentHash,
-      entries,
-    });
-
-    const r = await authedFetch("POST", "/api/v1/vault/manifest", {
-      body: {
-        version: nextVersion,
-        canonical_b64: b64encode(signed.canonicalBytes),
-        signature_b64: b64encode(signed.signature),
-      },
-    });
-    if (!r.ok) {
-      console.warn(`manifest upload returned ${r.status} ${r.statusText}`);
-    }
+    await uploadManifest();
   } catch (err) {
     console.warn("manifest upload failed:", err);
   }
