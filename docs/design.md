@@ -10,21 +10,21 @@
 > baked into ciphertexts on disk; renaming them would invalidate every
 > deployed vault.
 
-A Rust-native, greenfield alternative to Bitwarden targeting full enterprise parity at a fraction of the operational footprint. This document is an architecture/design specification — no code yet.
+A Rust-native, end-to-end-encrypted password manager and secrets platform built around a modern wire protocol, single-binary self-host, and native clients on every platform.
 
 ---
 
 ## Context
 
-Bitwarden is the most popular open-source password manager and the reasonable feature target. Its self-hosted .NET stack idles at 1–2 GB across 9 microservices (4 GB practical floor); browser extension cold-start is reported at 3–10 s; the unofficial Rust reimplementation (Vaultwarden) idles at ~50 MB but is API-locked to Bitwarden's 2018-era protocol decisions (full-snapshot `/sync`, AES-CBC+HMAC, PBKDF2 default, SignalR push). The Bitwarden mobile app's poor performance under Xamarin drove a full native rewrite shipped in Jan 2025. There is room for a successor that combines Vaultwarden's footprint with native clients on every platform, modern cryptography, delta sync, and full enterprise features (SSO/SCIM/Key Connector/Secrets Manager) that neither Vaultwarden nor any other open-source alternative covers.
+Existing open-source password managers in this space carry a meaningful operational footprint (multi-container .NET deployments, multi-second extension cold starts, full-snapshot sync) and protocol decisions that pre-date AEAD-by-default and delta sync. Hekate is a greenfield rebuild around modern primitives: a single statically-linked Rust binary, delta sync with explicit conflict surfacing, AEAD-only crypto with per-cipher keys from day one, and native clients on every platform (no Electron, no Angular popup).
 
-**Goals.** Open-source (AGPL-3.0 server + GPLv3 clients), Rust-native, single-binary self-host with 100 MB idle memory floor, sub-200 ms autofill TTI, full enterprise feature parity with Bitwarden Enterprise. Greenfield wire protocol — no compatibility with Bitwarden's existing API. Native clients on every platform from day one (no Electron, no Angular popup).
+**Goals.** Open-source (AGPL-3.0 server + GPLv3 clients), Rust-native, single-binary self-host with 100 MB idle memory floor, sub-200 ms autofill TTI, full feature coverage of personal + team + enterprise workflows on a greenfield wire protocol. Native clients on every platform from day one.
 
-**Non-goals.** Bitwarden-client compatibility. Cross-vendor import/export beyond CSV/KDBX/1Pux/Bitwarden-export. Hosted SaaS (initially) — focus on self-host first.
+**Non-goals.** Wire-format compatibility with any existing vendor's protocol. Cross-vendor import/export beyond the four major formats Hekate parses (Bitwarden JSON, 1Password 1PUX, KeePass KDBX, LastPass CSV). Hosted SaaS in v1 — focus on self-host first.
 
 ### Design pillars (non-negotiable)
 
-These two are the user-facing pain points with Bitwarden today. Every architecture decision is checked against them.
+These two are the user-facing pain points the design exists to solve. Every architecture decision is checked against them.
 
 1. **Sync that "just works"** — sub-2 s cross-device propagation p95, automatic recovery from network/push failures, explicit conflict surfacing (no silent last-writer-wins data loss), full offline support with queued writes, no third-party push relay required (mobile push goes APNs/FCM direct). Sync correctness is testable and tested as a first-class invariant. See §4.
 2. **Everything has a stable, documented API** — every action available in *any* client (web, desktop, mobile, browser extension) is available over REST under `/api/v1` with the same authentication model. The CLI is a thin wrapper, not a privileged side door. The "Public API" is not a separate restricted surface — there is one API. Personal access tokens, OAuth client credentials, and webhooks are first-class. See §7.
@@ -119,7 +119,7 @@ All sensitive fields are stored as `EncString` (see §5). Plaintext on the serve
 
 ## 4. Sync Protocol
 
-**The single most important system.** Bitwarden returns the entire vault on every sync, has occasional 5–60 min cross-device lags (Cloudflare-routing regression in 2024), silently last-writer-wins on conflicts, and requires a third-party Bitwarden cloud relay for mobile push even on self-host. Hekate's sync is designed to fix all of this.
+**The single most important system.** Hekate's sync is designed to deliver sub-2 s cross-device propagation, explicit conflict surfacing instead of last-writer-wins, no third-party push relays, and full offline support with durable queued writes.
 
 ### Design invariants
 
@@ -163,7 +163,7 @@ Every cipher write carries the client's last-known `revision_date` as an `If-Mat
 - **Conflict** (server has been updated since): server returns `409 Conflict` with the current server version. Client materializes a **conflict twin** — both versions persist as separate ciphers with `conflict_of: <orig_id>` metadata; UI surfaces a "two versions of this item" banner with a side-by-side diff and lets the user pick or merge. No silent overwrite, ever.
 - **Field-level merge** for the common case where two clients edited disjoint fields: the protocol exposes the prior known state via a Merkle-ish hash chain on `(cipher_id, field_name, content_hash)`; the client can detect that the conflicting edits don't touch the same fields and auto-merge with explicit user notification. Auto-merge is opt-in per-org policy — defaults off for safety.
 
-This is the explicit conflict surfacing Bitwarden lacks.
+This is the explicit conflict surfacing design pillar #1 demands.
 
 ### Offline-first client model
 
@@ -229,7 +229,7 @@ For shared org collections where multiple admins may edit simultaneously, an opt
 - **Symmetric:** **XChaCha20-Poly1305** (24-byte nonce — random nonces are safe; no need for nonce coordination across clients). AES-GCM-SIV is the alternative if FIPS profile is needed.
 - **Asymmetric:** X25519 for ECDH key wrapping (replaces RSA-OAEP), Ed25519 for signatures. RSA stays only for SSO assertion verification where IdPs require it.
 - **HKDF-SHA-256** for sub-key derivation.
-- **Per-cipher random key** (32 bytes, XChaCha20-Poly1305) wrapping every field of that item; Cipher Key wrapped by user or org symmetric key. Bitwarden adopted this in 2023; we ship it from day 1.
+- **Per-cipher random key** (32 bytes, XChaCha20-Poly1305) wrapping every field of that item; Cipher Key wrapped by user or org symmetric key. Mandatory from day 1 — the server validator rejects ciphers without a `protected_cipher_key`.
 
 ### Key hierarchy
 
@@ -249,7 +249,7 @@ Account Public Key ──used by other users to wrap shared keys to you
 Org Symmetric Key  ──wraps Cipher Keys for org-owned ciphers; wrapped per-member to their Account Public Key (X25519)
 ```
 
-Never PBKDF2 by default. Bitwarden's "design flaw" of relying on weak server-side iterations as a substitute for client-side strength is explicitly avoided — server stores `Argon2id(master_password_hash, server_salt, m=64MiB)` solely as a defense-in-depth measure, not as the only barrier.
+Never PBKDF2 by default. Client-side strength carries the cryptographic load; the server stores `Argon2id(master_password_hash, server_salt, m=64MiB)` solely as a defense-in-depth measure, not as the only barrier against a stolen database.
 
 ### EncString format
 
@@ -276,7 +276,7 @@ Per-cipher keys (PCK) make rotation cheap: re-wrap PCKs only, leave field cipher
 
 ### Send
 
-Each Send carries a 256-bit URL-fragment secret (`#/send_id/key`). Client derives a 256-bit content key via HKDF (`info=pmgr-send-content-v1`, salt=send_id) and encrypts payload with XChaCha20-Poly1305 (AAD = `pmgr-send-data-v1:<send_id>:<send_type>` so a server cannot move payload bytes between Sends or flip text↔file). Optional access password is a server-side Argon2id-hashed gate, never feeds encryption (matches Bitwarden's threat model — server can revoke but not decrypt).
+Each Send carries a 256-bit URL-fragment secret (`#/send_id/key`). Client derives a 256-bit content key via HKDF (`info=pmgr-send-content-v1`, salt=send_id) and encrypts payload with XChaCha20-Poly1305 (AAD = `pmgr-send-data-v1:<send_id>:<send_type>` so a server cannot move payload bytes between Sends or flip text↔file). Optional access password is a server-side Argon2id-hashed gate, never feeds encryption — server can revoke or rate-limit access but cannot decrypt the payload.
 
 **Implementation status:** text and file Sends both shipped — `hekate-core::send`, `crates/hekate-server/src/routes/sends.rs` (authenticated owner CRUD + `POST /api/v1/public/sends/{id}/access` for anonymous recipients + sender-authenticated tus body upload at `POST /api/v1/sends/{id}/upload` and `HEAD/PATCH/DELETE /api/v1/tus-send/{token}` + anonymous `GET /api/v1/public/sends/{id}/blob/{download_token}`), `hekate send {create-text, create-file, list, delete, disable, enable, open}` CLI. Sender-stored `protected_send_key` is the 32-byte send_key wrapped under the account key with AAD bound to the send_id, so the sender can list/edit from any device without re-typing the URL fragment. Background GC drops rows past `deletion_date` (and enqueues the file-Send body for the blob-tombstone drain). Public access enforces (in order) row exists → not disabled → not past deletion_date → not past expiration_date → for file Sends, body finalized → password matches (Argon2id-PHC, constant time) → atomic `access_count < max_access_count` bump. For file Sends, `/access` additionally mints a 5-minute `download_token` for `/blob/{token}`; multiple GETs within TTL are allowed (network retry).
 
@@ -345,7 +345,7 @@ M5.x extension. See `m5-trust-ux.md` for the locked design.
 
 ## 7. APIs
 
-**One unified, fully-documented REST API.** Bitwarden has two: an internal `/api` consumed only by its own clients, and a separate `/public/api` that explicitly excludes vault items (you cannot create/read/update/delete a cipher via Bitwarden's Public API — only org admin operations). Hekate collapses these. **Every action available in any client is available over `/api/v1` to any caller with appropriate auth.** The CLI is a thin client of this API; clients have no special back door.
+**One unified, fully-documented REST API.** No split between an internal client API and a restricted "public" API — there is one surface. **Every action available in any client is available over `/api/v1` to any caller with appropriate auth.** The CLI is a thin client of this API; clients have no special back door.
 
 ### API completeness contract
 
@@ -477,19 +477,19 @@ All clients share a Rust core (`hekate-core`) compiled to:
 
 ## 9. Performance Targets
 
-| Operation | Target | Bitwarden today |
-|---|---|---|
-| Browser-ext autofill TTI (warm) | <50 ms | 200–800 ms |
-| Browser-ext autofill TTI (cold worker) | <200 ms | 3–10 s (pain point) |
-| Web vault search across 10k items | <100 ms | 20–30 s on slow connections |
-| Mobile app cold open → vault visible | <500 ms | 7–50 s (Xamarin era) |
-| Cross-device sync after edit (push path) | <2 s p95, <500 ms p50 | <60 s typical, 5–60 min regressions |
-| Cross-device sync (push failed, polling fallback) | <30 s p95 | indeterminate |
-| Conflict on concurrent edit | always surfaced, never silent loss | silent last-writer-wins |
-| Offline writes queued and replayed on reconnect | yes, durable | partial / silent failures |
-| Server idle RAM (100 users) | <100 MB | 1.5 GB |
-| Server p99 sync latency | <100 ms | 500 ms+ |
-| Self-host install size | <30 MB binary | 4 GB recommended RAM, multi-container |
+| Operation | Target |
+|---|---|
+| Browser-ext autofill TTI (warm) | <50 ms |
+| Browser-ext autofill TTI (cold worker) | <200 ms |
+| Web vault search across 10k items | <100 ms |
+| Mobile app cold open → vault visible | <500 ms |
+| Cross-device sync after edit (push path) | <2 s p95, <500 ms p50 |
+| Cross-device sync (push failed, polling fallback) | <30 s p95 |
+| Conflict on concurrent edit | always surfaced, never silent loss |
+| Offline writes queued and replayed on reconnect | yes, durable |
+| Server idle RAM (100 users) | <100 MB |
+| Server p99 sync latency | <100 ms |
+| Self-host install size | <30 MB binary |
 
 ---
 
@@ -497,7 +497,7 @@ All clients share a Rust core (`hekate-core`) compiled to:
 
 ### Secrets Manager (developer/machine secrets)
 
-Distinct schema, same server, separate URL prefix. Modeled after Bitwarden Secrets Manager but with a Rust SDK from day 1 (Bitwarden's SDK is also Rust — confirms the choice).
+Distinct schema, same server, separate URL prefix. Rust SDK from day 1, with bindings into other languages via `uniffi-rs`.
 
 - **Projects** — top-level grouping, ACL via group/role.
 - **Secrets** — `(project_id, key, EncString value)`. Versioned; full history retained.
@@ -511,7 +511,7 @@ Distinct schema, same server, separate URL prefix. Modeled after Bitwarden Secre
 
 - `provider_id` foreign key on `organizations`.
 - Provider admins can list, create, suspend, and bill their managed orgs without joining them.
-- Cross-org event log roll-up. Self-host supported (Bitwarden's is cloud-only).
+- Cross-org event log roll-up. Available on self-host as well as managed.
 
 ### Policies (org)
 
@@ -562,7 +562,7 @@ Specific defenses:
 - **Constant-time MAC verify** on every decryption.
 - **CSP, COOP, COEP, CORP** headers everywhere. No third-party scripts in web vault.
 - **No telemetry** by default. Optional anonymized counters opt-in.
-- **No external icon fetches** by default — favicon proxy is opt-in (Bitwarden's icons service leaks browsing patterns).
+- **No external icon fetches** by default — favicon proxy is opt-in, since per-URI icon lookups reveal which sites a user has stored.
 - **Reproducible builds** (Cargo + `cargo-vet` + SLSA L3 provenance via GitHub Actions).
 - **Audit cadence:** target one independent crypto audit before v1.0, one full code audit before v1.0, annually thereafter. Bug bounty via HackerOne or self-managed.
 

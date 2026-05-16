@@ -211,7 +211,7 @@ through the standard org / policy / token primitives.
 
 ### Out-of-scope for v1.0 (deliberate) ❌
 
-- ❌ Bitwarden-API compatibility — chose greenfield protocol; trades migration ease for modern crypto + delta sync
+- ❌ Wire-format compatibility with any existing vendor's API — chose greenfield protocol; trades migration ease for modern crypto + delta sync
 - ❌ Hosted SaaS — self-host first
 - ❌ Federated multi-server — IDs (UUIDv7) and tombstones reserve the door for v2
 - ❌ Post-quantum primitives — EncString `alg_id` field reserves the migration path
@@ -219,9 +219,10 @@ through the standard org / policy / token primitives.
 
 ---
 
-## Parity scorecard vs Bitwarden Enterprise
+## Feature coverage scorecard
 
-Honest snapshot, updated each milestone.
+Honest snapshot, updated each milestone. Categories cover the
+personal-vault → team → enterprise scope Hekate targets at v1.0.
 
 | Category | Now | Notes |
 |---|---|---|
@@ -236,7 +237,7 @@ Honest snapshot, updated each milestone.
 | Clients (web, ext, desktop, mobile, CLI) | ~75% | CLI: ~99%. Browser extension (Hekate, Chromium MV3): ~98% — vault, sends, orgs full read+write (incl. M4.5b removal + rotate-confirm), attachments, TOTP, WebAuthn, rotate-keys, passkey provider (smoke green); remaining: inline content-script autofill overlay. Web vault (Hekate, SolidJS, Phase C): ~98% — vault, sends, orgs full read+write, settings (change password, 2FA TOTP+WebAuthn, peer pins, account export, account delete), rotate-keys + strict-manifest, attachments. Desktop / mobile: 0% (Tauri / native still M3 backlog) |
 | Imports (1Password / Bitwarden / KeePass / LastPass) | ~90% | Bitwarden JSON (M2.27) + 1Password 1PUX (M2.27a) + KeePass KDBX 3.1/4 (M2.27b) + LastPass CSV (M2.27c) all shipped. Remaining: encrypted-export variants for each format + per-format attachment imports |
 | Vault health reports | 0% | M4 |
-| **Overall by feature count** | **~6%** | of full Bitwarden Enterprise |
+| **Overall by feature count** | **~6%** | of the full v1.0 scope (personal vault + team sharing + enterprise modules) |
 
 ---
 

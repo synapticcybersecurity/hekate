@@ -1,19 +1,23 @@
 # M4 — Organizations, sharing, collections
 
-**Status**: design / planning. None of this is implemented.
+**Status**: M4.0–M4.6 shipped (see [`status.md`](status.md) for the
+implementation snapshot). This document is the original design /
+planning record, preserved as audit-facing reference for the trust
+model and wire formats.
 **Prereqs (all shipped):** M2.18 signcryption envelope · M2.19 self-signed
 pubkey bundle · M2.20 TOFU pubkey pinning. The cryptographic trust path
-for sharing is now complete; M4 is the *consumer* of that work.
+for sharing was complete before M4 work began; M4 is the *consumer* of
+that work.
 
 ---
 
 ## 1. Why this needs a design doc
 
-M4 is the biggest single track on the roadmap. Bitwarden took multiple
-years building it, ships it across 4 surfaces (web vault, browser ext,
-desktop, mobile), and its enterprise tier (SSO/SCIM/Provider Portal)
-piles on top of M4's foundation. Even an MVP is **6–10 sessions of
-work**.
+M4 is the biggest single track on the roadmap. The work spans server
+schema + crypto, three client surfaces (CLI, browser extension, web
+vault), and the trust path that future enterprise-tier capabilities
+(SSO / SCIM / Provider Portal) build on. Even an MVP is **6–10
+sessions of work**.
 
 More importantly: M4 introduces the first feature Hekate has where the
 *correctness of the cryptographic model* is non-obvious. Personal-vault
@@ -468,9 +472,9 @@ user's effective permission for it (intersection of org membership
 + collection memberships). Server enforces by 403'ing `PUT` /
 `DELETE` against the cipher when permission is `read`. Client honors
 `read_hide_passwords` by masking the password field in lists and
-not exposing it in `Copy`. Same trust model as Bitwarden — a
-malicious *client* could ignore the hint, but a malicious *server*
-cannot decrypt to peek.
+not exposing it in `Copy`. Standard E2EE trust model: a malicious
+*client* could ignore the hint, but a malicious *server* cannot
+decrypt to peek.
 
 ---
 
@@ -629,23 +633,20 @@ lands.
 
 ### 10.3 Role naming
 
-Bitwarden uses `owner / admin / manager / user / custom`. We can ship
-a smaller set:
-
 **Recommendation for v1**: `owner / admin / user`. Manager and custom
-are M5.
+roles are M5+.
 
 ### 10.4 Collection name encryption
 
-Bitwarden encrypts collection names under the org symmetric key. That
-means the server can't list collections by name in admin tooling.
-Decision aligns with E2EE; ship it. Server uses opaque IDs everywhere.
+Collection names are encrypted under the org symmetric key. This means
+the server cannot list collections by name in admin tooling — a
+deliberate E2EE consequence; the server uses opaque IDs everywhere.
 
 ### 10.5 Org member listing permissions
 
 Two regimes:
-- **All members can list all members** (Bitwarden default; same as
-  Slack workspace member list).
+- **All members can list all members** (similar to a Slack workspace
+  member list).
 - **Only admins/owner can list** (more privacy).
 
 **Recommendation**: regime 1 (all members can list) for simplicity.
@@ -697,8 +698,8 @@ This is genuinely v2 work and shouldn't influence M4-v1 implementation.
 - [ ] `threat-model-gaps.md` row 3 of "Open: Authenticated public
       keys" struck through
 
-When all of those pass, M4 v1 is shipped and Hekate has feature
-parity with Bitwarden's "team plan" personal-vault sharing.
+When all of those pass, M4 v1 is shipped and Hekate has the
+personal-team sharing primitives needed to support multi-user orgs.
 
 ---
 

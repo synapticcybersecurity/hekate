@@ -123,8 +123,9 @@ today (no server-synced pins yet).
 
 ## Intentional non-goals
 
-- Bitwarden API compatibility (chose greenfield protocol — modern
-  crypto + delta sync over migration ease).
+- Wire-format compatibility with any existing vendor's API (chose
+  greenfield protocol — modern crypto + delta sync over migration
+  ease).
 - Hosted SaaS (self-host first; volunteer-operated public instances
   may follow).
 - Federated multi-server (UUIDv7 ids + tombstones reserve the door

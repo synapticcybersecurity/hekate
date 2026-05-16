@@ -232,13 +232,13 @@ mitigations apply.
    the user (not injected by the server). Same primitive as the sharing
    mitigation; build it once.
 
-3. **No SSO-only flow without HSM-backed escrow.** The Bitwarden Key
-   Connector design the paper attacks delegates key storage to a
-   self-hosted application that has nothing forcing it to behave
-   honestly. If Hekate ships an analogous service, the keys it holds must
-   be in an HSM with attested access logs (per the paper's "Securing a
-   backdoor" discussion in §6, mirroring the Signal / WhatsApp / Apple
-   Advanced Data Protection direction).
+3. **No SSO-only flow without HSM-backed escrow.** The Key-Connector-
+   style design the paper attacks (BW02 in §6) delegates key storage to
+   a self-hosted application that has nothing forcing it to behave
+   honestly. If Hekate ships an analogous service, the keys it holds
+   must be in an HSM with attested access logs (per the paper's
+   "Securing a backdoor" discussion in §6, mirroring the Signal /
+   WhatsApp / Apple Advanced Data Protection direction).
 
 4. The "remove master password" UX (paper's BW03) must surface the
    target key-server URL prominently and require an explicit
