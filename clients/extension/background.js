@@ -107,6 +107,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== ALARM_CLIPBOARD) return;
+  // Firefox MV3 has no chrome.offscreen, but its event-page background
+  // has direct navigator.clipboard access — so we just write "" here.
+  // Chrome's SW does not, hence the offscreen-document detour.
+  if (typeof chrome.offscreen === "undefined") {
+    try {
+      await navigator.clipboard.writeText("");
+    } catch (_) {
+      /* nothing else to try from the background */
+    }
+    return;
+  }
   try {
     await ensureOffscreen();
     await chrome.runtime.sendMessage({ type: MSG_OFFSCREEN_CLEAR });

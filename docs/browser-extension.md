@@ -55,9 +55,10 @@ never trusted with plaintext keys.
    > runs on the host, so it can still use `http://hekate.localhost`.
 
    (Or any other `hekate` invocation: see [`api.md`](api.md).)
-3. **A Chromium-family browser**: Chrome, Chromium, Edge, Brave,
-   Vivaldi, Arc, Opera, etc. Firefox MV3 is not yet validated — see
-   the *Firefox* section below.
+3. **A browser**: any Chromium-family browser (Chrome, Chromium,
+   Edge, Brave, Vivaldi, Arc, Opera, etc.) or **Firefox 142+** — see
+   the *Firefox* section below for the build target and the small
+   feature delta (no passkey provider on Firefox; tracked as #4).
 
 ## Build
 
@@ -105,15 +106,39 @@ extension card after rebuilding.
 
 ### Firefox
 
-Firefox supports MV3 since 109 but its background-script and
-`chrome.storage.session` semantics differ subtly from Chromium. M3.1
-hasn't been validated there. The popup likely works but *YMMV*; it's
-not on the test matrix yet.
+Firefox uses a separate manifest variant
+(`clients/extension/manifest.firefox.json`) plus an event-page
+background (Firefox MV3 service workers can't reach
+`navigator.clipboard`, so the clipboard-clear path needs a different
+host). The Makefile stages a build for you:
 
-To try anyway:
+```bash
+make extension-firefox       # → dist/extension-firefox/ (load unpacked)
+make extension-firefox-zip   # → dist/hekate-<version>.zip (AMO upload)
+```
+
+What this does:
+1. Runs `make extension` (so `wasm/` is up to date).
+2. Stages the extension tree to `dist/extension-firefox/`, swaps the
+   manifest for the Gecko variant (gecko id, `strict_min_version:
+   "142.0"` — that floor is set by AMO's `data_collection_permissions`
+   requirement, not by feature use — event-page background, no
+   `offscreen` / `webAuthenticationProxy` permissions), and drops
+   `offscreen.html`/`offscreen.js` (Chrome-only dead weight).
+3. Runs `npx web-ext lint` against the staged build so anything AMO
+   will reject surfaces locally. Requires Node 18+ on the host.
+
+To load unpacked:
 1. `about:debugging#/runtime/this-firefox` → **Load Temporary
-   Add-on** → pick `clients/extension/manifest.json`.
+   Add-on** → pick `dist/extension-firefox/manifest.json`.
 2. Extensions loaded this way are unloaded when Firefox restarts.
+
+**Feature delta vs Chromium:** the *passkey provider*
+(`chrome.webAuthenticationProxy`) is intentionally absent on Firefox
+— it's blocked on Firefox shipping `browser.webAuthn` and is tracked
+separately as **#4**. Every other surface — vault, autofill, copy +
+auto-clear, TOTP, Sends, Orgs, 2FA management, `account rotate-keys`
+— ships unchanged.
 
 ## First-time use
 
@@ -255,8 +280,8 @@ The manifest declares:
 | `scripting` | Inject the `pageFill` function into the active tab on a click of **Fill**. |
 | `activeTab` | Query the active tab's URL so the popup can host-match ciphers without needing always-on tab listeners. |
 | `alarms` | Drives the clipboard auto-clear timer in the service worker so it fires after the popup closes. Chromium clamps the alarm minimum to ~30 s. |
-| `offscreen` | Hosts an offscreen document that owns the clipboard between fires so the auto-clear still works when no popup is open. |
-| `webAuthenticationProxy` | Implements the passkey provider that intercepts `navigator.credentials.create` / `.get` and routes ceremonies through the vault. Requires Chrome 115+. |
+| `offscreen` *(Chromium only)* | Hosts an offscreen document that owns the clipboard between fires so the auto-clear still works when no popup is open. Firefox uses an event-page background that has direct clipboard access and doesn't need this. |
+| `webAuthenticationProxy` *(Chromium only)* | Implements the passkey provider that intercepts `navigator.credentials.create` / `.get` and routes ceremonies through the vault. Requires Chrome 115+. Firefox port tracked as #4, blocked on `browser.webAuthn`. |
 
 The CSP is `script-src 'self' 'wasm-unsafe-eval'`. The `wasm-unsafe-eval`
 clause is required by Chromium to compile WebAssembly inside an MV3
@@ -324,9 +349,9 @@ Longer-term:
 - **Background SSE listener for real-time refresh** — service worker
   already subscribes; tighten the popup→SW handoff so opened popups
   refresh on push events without a manual reload.
-- **Firefox compat** — the manifest is Chromium-shaped (`service_worker`
-  background); Firefox needs a `browser_specific_settings` block +
-  webextension-polyfill shim. Safari is its own packaging story.
+- **Firefox compat** — shipped under #6 (`make extension-firefox` →
+  unpacked, `make extension-firefox-zip` → AMO artifact; sans
+  passkey provider, which is #4). Safari is its own packaging story.
 
 ## Source layout
 

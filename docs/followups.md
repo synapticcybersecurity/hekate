@@ -121,13 +121,16 @@ primitives.
 The Chromium passkey-provider track is shipped + smoke-green
 (webauthn.io round-trip verified; closed as #1). What's still open:
 
-- **Firefox port** — tracked as #4. Blocked on Firefox shipping
-  its `browser.webAuthn` extension API (WICG draft, currently
-  flagged in Nightly). The Chrome-side code in
+- **Firefox port** — the *vault / autofill / TOTP / sends / orgs*
+  surface shipped under #6 (`make extension-firefox` →
+  `dist/extension-firefox/`; `make extension-firefox-zip` →
+  AMO-uploadable artifact). The *passkey-provider* piece stays
+  tracked as **#4**, blocked on Firefox shipping its
+  `browser.webAuthn` extension API (WICG draft, currently flagged
+  in Nightly). The Chrome-side code in
   `crates/hekate-core/src/passkey.rs` and the popup approval UI
-  will be reused unchanged once the API is available; only
-  `clients/extension/background.js` event wiring needs a Firefox
-  variant. Separate AMO publication path.
+  will be reused unchanged once the API is available; only the
+  `background.js` event wiring needs the Firefox variant.
 - **Web vault parity** — informational UI only. A SPA can't be
   a passkey provider (same-origin policy + no equivalent
   privileged-context API for regular web pages), so the web
@@ -193,8 +196,10 @@ real product.
 - [ ] **Microsoft Edge Add-ons** listing (separate store from
       Chrome Web Store; same Chromium extension passes review
       separately).
-- [ ] **Mozilla AMO (Firefox)** — verify Manifest V3 compatibility,
-      port WebExtension API differences, get AMO-signed.
+- [ ] **Mozilla AMO (Firefox)** — submission of the
+      `make extension-firefox-zip` artifact (#6 landed the build target
+      and `web-ext lint`-clean manifest; this checkbox is the actual
+      AMO upload + signing).
 - [ ] **Safari Extension** — likely the heaviest port; Safari uses
       a different extension model (App Extension wrapped in a
       macOS/iOS app bundle). May piggyback on the macOS standalone

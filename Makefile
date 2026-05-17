@@ -115,6 +115,39 @@ extension: wasm ## Build wasm and copy bindings into the browser extension
 	@echo "Extension ready: load 'clients/extension' as an unpacked MV3 extension."
 	@ls -la clients/extension/wasm
 
+# ---- Firefox MV3 build (#6) --------------------------------------------------
+#
+# Stages the Chromium extension tree to dist/extension-firefox/, swaps the
+# manifest for the Gecko variant (event-page background, no offscreen /
+# webAuthenticationProxy permissions), and runs `web-ext lint` to catch
+# anything AMO will reject. The passkey-provider feature is intentionally
+# absent here — it stays on the Chromium build until Firefox ships
+# `browser.webAuthn` (tracked separately as #4).
+#
+# `web-ext` is invoked via npx so we don't add a root package.json; the
+# host needs Node 18+.
+.PHONY: extension-firefox
+extension-firefox: extension ## Stage + lint the Firefox MV3 unpacked build
+	rm -rf dist/extension-firefox
+	mkdir -p dist/extension-firefox
+	rsync -a clients/extension/ dist/extension-firefox/ \
+	    --exclude README.md --exclude COMPILEandDEBUG.md \
+	    --exclude offscreen.html --exclude offscreen.js
+	cp dist/extension-firefox/manifest.firefox.json dist/extension-firefox/manifest.json
+	rm dist/extension-firefox/manifest.firefox.json
+	npx --yes web-ext@10 lint --source-dir dist/extension-firefox --no-config-discovery
+	@echo "Firefox unpacked build: dist/extension-firefox/"
+
+.PHONY: extension-firefox-zip
+extension-firefox-zip: extension-firefox ## Produce AMO-uploadable artifact in dist/
+	npx --yes web-ext@10 build \
+	    --source-dir dist/extension-firefox \
+	    --artifacts-dir dist \
+	    --overwrite-dest \
+	    --no-config-discovery
+	@echo "AMO artifact:"
+	@ls -la dist/*.zip
+
 # ---- web vault (SolidJS SPA) -------------------------------------------------
 #
 # `make web` produces clients/web/dist/, which `hekate-server` mounts at
