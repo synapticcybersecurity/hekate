@@ -193,6 +193,28 @@ web-dev: ## Vite dev server on :5173 (point a browser at http://localhost:5173/)
 	  $(WEB_NODE_IMAGE) \
 	  sh -c 'npm ci --no-audit --no-fund && npm run dev -- --host 0.0.0.0'
 
+# ── Desktop app (Tauri) ──────────────────────────────────────────────
+# Unlike everything above, the desktop app builds NATIVELY on the host —
+# a macOS .app cannot be produced inside the Linux dev container. It needs
+# a host Rust toolchain + the Tauri 2 CLI on PATH (see
+# clients/desktop/README.md). The web SPA it wraps is still built in
+# Docker via `make web`.
+DESKTOP_DIR := clients/desktop/src-tauri
+
+.PHONY: desktop-check
+desktop-check: ## Verify the host has cargo + the Tauri CLI
+	@command -v cargo >/dev/null 2>&1 || { echo "ERROR: cargo not on PATH. Install rustup — see clients/desktop/README.md"; exit 1; }
+	@cargo tauri --version >/dev/null 2>&1 || { echo "ERROR: Tauri CLI missing. Run: cargo install tauri-cli --version '^2.0' --locked"; exit 1; }
+
+.PHONY: desktop
+desktop: web desktop-check ## Build the web SPA (Docker) then run the Tauri app (host, dev)
+	cd $(DESKTOP_DIR) && cargo tauri dev
+
+.PHONY: desktop-build
+desktop-build: web desktop-check ## Build the web SPA (Docker) then bundle a macOS .app/.dmg (host)
+	cd $(DESKTOP_DIR) && cargo tauri build
+	@echo "Desktop bundle: $(DESKTOP_DIR)/target/release/bundle/"
+
 .PHONY: check
 check: dev-image ## cargo check
 	$(DEV_RUN) cargo check --all-targets

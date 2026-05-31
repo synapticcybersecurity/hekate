@@ -48,3 +48,6 @@ Thumbs.db
 
 # Docker
 .docker-cache/
+
+# Local compose overrides (machine-specific, e.g. desktop CORS smoke)
+docker-compose.override.yml

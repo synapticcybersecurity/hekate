@@ -17,6 +17,7 @@
 import { createSignal, onMount, Show } from "solid-js";
 
 import { ApiError, postJSON } from "../../lib/api";
+import { apiUrl } from "../../lib/config";
 import { b64decode } from "../../lib/base64";
 import { parseShareFragment, type ParsedShareUrl } from "../../lib/shareUrl";
 import type { HekateCore } from "../../wasm-types";
@@ -152,7 +153,7 @@ export function Recipient() {
 
     let ciphertext: Uint8Array;
     try {
-      const r = await fetch(blobUrl);
+      const r = await fetch(apiUrl(blobUrl));
       if (!r.ok) {
         setPhase({ kind: "error", message: `Server: ${r.status} ${r.statusText}` });
         return;

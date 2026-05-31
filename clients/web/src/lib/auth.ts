@@ -11,6 +11,7 @@
  *      key the user just typed.
  */
 import { ApiError, postJSON } from "./api";
+import { apiUrl } from "./config";
 import { b64decode, b64encode, b64urlEncode } from "./base64";
 import { setSession } from "./session";
 import { loadHekateCore } from "../wasm";
@@ -41,7 +42,7 @@ async function postForm(
   url: string,
   body: Record<string, string>,
 ): Promise<FormResult> {
-  const r = await fetch(url, {
+  const r = await fetch(apiUrl(url), {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(body).toString(),

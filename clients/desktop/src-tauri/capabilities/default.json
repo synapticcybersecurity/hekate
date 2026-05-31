@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core window permissions for the main Hekate window. No plugin or filesystem access is granted — the foundation build only renders the bundled SPA.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -22,6 +22,7 @@
  * rotation silently strands the field. See the rewrap-invariant memory.
  */
 import { authedFetch, ApiError, apiGet } from "./api";
+import { apiUrl } from "./config";
 import { b64decode, b64encode, b64urlEncode } from "./base64";
 import { uploadManifestQuiet } from "./manifest";
 import {
@@ -298,7 +299,7 @@ export async function rotateKeys(masterPassword: string): Promise<RotateKeysSucc
 }
 
 async function postJSON<T>(url: string, body: unknown): Promise<T> {
-  const r = await fetch(url, {
+  const r = await fetch(apiUrl(url), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -324,7 +325,7 @@ async function postFormCapture(
   url: string,
   body: Record<string, string>,
 ): Promise<{ status: number; body: PasswordGrantBody | null }> {
-  const r = await fetch(url, {
+  const r = await fetch(apiUrl(url), {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(body).toString(),
