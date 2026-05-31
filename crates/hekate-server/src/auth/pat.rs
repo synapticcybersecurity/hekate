@@ -16,10 +16,19 @@ use uuid::Uuid;
 
 const WIRE_PREFIX: &str = "pmgr_pat_";
 
-#[derive(Debug)]
 pub struct IssuedPat {
     pub id: String,
     pub wire_token: String,
+}
+
+impl std::fmt::Debug for IssuedPat {
+    // E4 (issue #18): never print the plaintext wire token.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IssuedPat")
+            .field("id", &self.id)
+            .field("wire_token", &"<redacted>")
+            .finish()
+    }
 }
 
 #[derive(Debug)]
