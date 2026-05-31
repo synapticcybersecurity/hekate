@@ -10,6 +10,33 @@ ships a native menu bar and a menu-bar tray icon (hide-to-tray on window
 close); Touch ID / Hello unlock, auto-update, an in-app SSH agent (tier C),
 and the native credential provider (tier B) are follow-up milestones.
 
+## Desktop tiers (the #8 roadmap)
+
+The desktop track is scoped in three tiers of **increasing OS
+integration**. They're separable scopes, not a strict priority order — A
+is foundational; B and C are independent deeper integrations layered on
+later. Status is tracked in [`../../docs/status.md`](../../docs/status.md)
+(M3) and [`../../docs/followups.md`](../../docs/followups.md).
+
+- **Tier A — the app itself (foundation + polish).** A proper native app
+  with no deep privileged OS hooks.
+  - *Foundation (shipped):* Tauri 2 shell wrapping the web vault + wasm
+    core, empty IPC, locked CSP, configurable server (first-run screen),
+    `make desktop`/`desktop-build`, code-signing + notarization plumbing.
+  - *Polish:* ✅ system tray + native menu + hide-to-tray; ⬜ Touch ID /
+    Hello unlock (design in [`../../docs/desktop-touch-id.md`](../../docs/desktop-touch-id.md),
+    decision pending); ⬜ auto-update (needs a release channel); ⬜ in-app
+    "change server" in Settings (first-run selection exists today).
+- **Tier B — native credential provider (macOS first).** Register Hekate
+  as a system credential / autofill provider so it can fill passwords and
+  passkeys **OS-wide** (other apps, system sheets), not just in the Hekate
+  window. Not started.
+- **Tier C — in-app SSH agent.** Serve a local `SSH_AUTH_SOCK` (named pipe
+  on Windows) from the desktop app so terminals, `git`, and `ssh` can use
+  vault-stored SSH keys with per-use approval — the capability the CLI
+  already ships (`crates/hekate-cli/src/commands/ssh_agent.rs`, Ed25519),
+  served from the desktop app. Not started.
+
 ## Why Tauri
 
 - Crypto stays in `hekate-core` (same code as the web + extension builds).
