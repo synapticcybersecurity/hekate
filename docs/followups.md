@@ -36,20 +36,33 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
   Apple-Silicon macOS) shipped: `clients/desktop/` Tauri 2 shell wrapping
   the SPA, configurable API base (`apiUrl()` + first-run server screen),
   `make desktop` / `make desktop-build`, binary verified on
-  aarch64-apple-darwin. **Next slices, in order:**
-    1. **Run-on-device smoke** — `make desktop` against the dev server;
-       confirm first-run server screen → login → vault/sync/sends work in
-       the native window (WASM loads from `/wasm` under Tauri's root).
-    2. **Code signing + notarization** — wire the Apple Developer account
-       (now in hand) into `make desktop-build`: Developer ID cert,
-       `codesign`, `notarytool` submit + staple. Bundle id
-       `com.synapticcyber.hekate`.
-    3. **Auto-update** — Tauri built-in updater plugin + signed update
+  aarch64-apple-darwin. Shipped since: run-on-device smoke; code signing +
+  notarization (`make desktop-release`, bundle id
+  `com.synapticcyber.hekate`); **system tray + native menu + hide-to-tray**
+  (#8); desktop bug fixes (#26 — Copy-URL share base, in-app dialogs
+  replacing the no-op `window.confirm/alert/prompt`, macOS-padded app
+  icon). **Next slices, in order:**
+    1. **Touch ID unlock** (tier A) — macOS `LocalAuthentication` wired
+       into the vault lock flow. Security-sensitive; biometrics only test
+       in a *signed* build (`make desktop-release`). Likely a small Rust
+       command exposed over IPC (this is the first custom IPC command — keep
+       it minimal + capability-gated) that the SPA's lock screen calls to
+       gate unlock of the locally-cached session.
+    2. **Auto-update** — Tauri built-in updater plugin + signed update
        manifest endpoint (needs a release channel first).
-    4. **Tier-A polish** — Touch ID unlock, system tray, native menu;
-       in-app "change server" affordance in Settings.
-    5. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
+    3. **In-app "change server"** — first-run selection exists; add a
+       Settings affordance to switch servers later.
+    4. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
        B** (macOS credential provider) as later milestones.
+  - **Open bug (revisit):** the macOS Dock icon still renders inside a
+    white square for some users. The icon master was reshaped to Apple's
+    grid (`clients/desktop/src-tauri/icon-src.svg`, 824px body + transparent
+    padding) and regenerated, but a white tile persisted in `cargo tauri
+    dev` (which embeds the icon at *compile* time, so a dev run without a
+    Rust recompile shows the stale icon). Verify against a bundled `.app`
+    from `make desktop-build` with the Dock cache cleared (`killall Dock`);
+    if it persists there, inspect the `.icns` alpha channel (the generator
+    may be compositing onto an opaque background).
 
 - **next (after desktop): M5 v1 — Trust UX implementation.** Design +
   audit-facing threat model in [`m5-trust-ux.md`](m5-trust-ux.md);
