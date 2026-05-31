@@ -36,6 +36,8 @@
 | [`design.md`](design.md) | Primary spec: architecture, the crypto stack (Argon2id KDF, HKDF subkeys, EncString XChaCha20-Poly1305 envelope + AAD binding, per-cipher keys, signed BW04 manifest, signcryption envelope, `PMGRA1` chunked-AEAD attachments/Sends), token formats, data model, milestone map (§13). |
 | [`key-hierarchy.md`](key-hierarchy.md) | The consolidated key-derivation tree, key inventory (origin / where it lives / wrap key / AAD), the EncString envelope, the signing/DST table, server token material, and rotation — all with `file:line` citations. Opens with the `pmgr`/`PMGRA1` protocol-frozen-identifier explanation. |
 | [`audit-scope.md`](audit-scope.md) | Engagement brief: subject + commit baseline, in/out-of-scope components, trust model & assumptions, and deliverables sought. |
+| [`trust-boundaries.md`](trust-boundaries.md) | Trust-boundary / data-flow map: what crosses client↔server↔DB↔blob-store in plaintext vs ciphertext, and what the server can/cannot learn. |
+| [`crypto-inventory.md`](crypto-inventory.md) | Exact primitive + crate-version + parameter table (Argon2id cost, nonce strategy, signing/DSTs, server token hashing). |
 | [`api.md`](api.md) | HTTP API surface — every endpoint, auth requirements, request/response shapes. The attack surface to enumerate. |
 | `README.md` (top of contents in `CLAUDE.md`) | The **protocol-frozen identifiers** split (`pmgr-…` AAD strings, `pmgr_sat_*`/`pmgr_pat_*` token prefixes, `PMGRA1` magic baked into ciphertexts). Critical for understanding why some byte literals must not change. |
 
@@ -80,8 +82,8 @@ should be extracted/linked):
       [`key-hierarchy.md`](key-hierarchy.md): full derivation tree, key
       inventory, EncString envelope, DST/AAD tables, and rotation, with
       `file:line` citations.
-- [ ] **Data-flow / trust-boundary diagram** — client ↔ server, what
-      crosses each boundary in plaintext vs ciphertext, where AAD binds.
+- [x] **Data-flow / trust-boundary diagram** — ✅
+      [`trust-boundaries.md`](trust-boundaries.md).
 - [x] **Written audit scope statement** — ✅
       [`audit-scope.md`](audit-scope.md): subject + commit baseline,
       in/out-of-scope, trust model, deliverables.
@@ -91,9 +93,8 @@ should be extracted/linked):
       reviewed source matches a distributed binary (M7 / `followups.md`).
 - [ ] **Consolidated test/coverage report** — beyond the count table;
       coverage by crypto-critical module.
-- [ ] **Crypto primitive/version inventory** — exact RustCrypto crate
-      versions + parameters (Argon2id cost, nonce strategy, DSTs) in one
-      table for quick verification.
+- [x] **Crypto primitive/version inventory** — ✅
+      [`crypto-inventory.md`](crypto-inventory.md).
 
 ## Notes
 
