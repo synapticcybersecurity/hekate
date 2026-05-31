@@ -55,15 +55,13 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
        Settings affordance to switch servers later.
     4. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
        B** (macOS credential provider) as later milestones.
-  - **Open bug (revisit):** the macOS Dock icon still renders inside a
-    white square for some users. The icon master was reshaped to Apple's
-    grid (`clients/desktop/src-tauri/icon-src.svg`, 824px body + transparent
-    padding) and regenerated, but a white tile persisted in `cargo tauri
-    dev` (which embeds the icon at *compile* time, so a dev run without a
-    Rust recompile shows the stale icon). Verify against a bundled `.app`
-    from `make desktop-build` with the Dock cache cleared (`killall Dock`);
-    if it persists there, inspect the `.icns` alpha channel (the generator
-    may be compositing onto an opaque background).
+  - **Resolved (Dock icon white tile):** the prior icns was a blue squircle
+    composited onto an *opaque white* background (corners `255,255,255,255`),
+    so the Dock showed a white tile. The new `icon-src.svg` regeneration
+    produces transparent corners (`0,0,0,0`); confirmed against a bundled
+    `make desktop-build` `.app` (after `killall Dock`). Note `cargo tauri
+    dev` embeds the icon at *compile* time, so a dev run without a Rust
+    recompile keeps showing the stale icon — judge icons from a bundle.
 
 - **next (after desktop): M5 v1 — Trust UX implementation.** Design +
   audit-facing threat model in [`m5-trust-ux.md`](m5-trust-ux.md);
