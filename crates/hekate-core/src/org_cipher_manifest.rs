@@ -210,7 +210,7 @@ fn read_u64_le(p: &mut &[u8]) -> Result<u64> {
     if p.len() < 8 {
         return Err(Error::InvalidEncoding("short manifest u64".into()));
     }
-    let v = u64::from_le_bytes(p[..8].try_into().unwrap());
+    let v = u64::from_le_bytes(p[..8].try_into().map_err(|_| Error::InvalidEncoding("org manifest u64".into()))?);
     *p = &p[8..];
     Ok(v)
 }
@@ -218,7 +218,7 @@ fn read_u32_le(p: &mut &[u8]) -> Result<u32> {
     if p.len() < 4 {
         return Err(Error::InvalidEncoding("short manifest u32".into()));
     }
-    let v = u32::from_le_bytes(p[..4].try_into().unwrap());
+    let v = u32::from_le_bytes(p[..4].try_into().map_err(|_| Error::InvalidEncoding("org manifest u32".into()))?);
     *p = &p[4..];
     Ok(v)
 }
