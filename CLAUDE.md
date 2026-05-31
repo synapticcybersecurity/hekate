@@ -24,6 +24,19 @@ There is a deliberate **brand-vs-code-name split**, and getting it wrong corrupt
 
 ---
 
+## Security & Secure Coding
+
+Hekate is a password manager built on custom crypto. Before touching key material, AEAD call sites, auth, or any client secret-handling path, read [`docs/secure-coding.md`](docs/secure-coding.md) — the authoritative checklist. The crypto non-negotiables (the no-panic and `clippy`/`deny`/`audit` rules below also apply):
+
+- **Constant-time comparison** for secrets — tokens, MACs, auth tags, and password-hash outputs go through `subtle` (`ConstantTimeEq`), never `==`.
+- **Zero key material** — wrap keys, passwords, and derived secrets in `zeroize` / `ZeroizeOnDrop`; don't leave plaintext copies behind `String`/`Vec` reallocations.
+- **Don't hand-roll crypto** — use the vetted RustCrypto stack; CSPRNG (`getrandom` / `OsRng`) for anything security-bearing; never reuse a `(key, nonce)` pair; pass the matching AAD on encrypt *and* decrypt.
+- **Never log or surface secrets** — no plaintext, keys, or tokens in logs, error messages, or `Debug` impls (redact secret fields).
+
+**Publish gate:** no public binary (Apple `.app`, app store, signed release) ships until these standards are met and a comprehensive security analysis is complete — see [`docs/followups.md`](docs/followups.md) and [`docs/status.md`](docs/status.md) M7.
+
+---
+
 ## Stack
 
 Rust (edition 2021, rustc 1.89), Cargo workspace. axum / tower / hyper server. Persistence via `sqlx` over `AnyPool` — **SQLite by default, Postgres optional**. Docker Compose.
