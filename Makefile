@@ -223,9 +223,16 @@ desktop-sign-check: ## Verify Developer ID cert + notarization env are present (
 	@test -f "$$APPLE_API_KEY_PATH" || { echo "ERROR: APPLE_API_KEY_PATH ($$APPLE_API_KEY_PATH) is not a file."; exit 1; }
 
 .PHONY: desktop-release
-desktop-release: web desktop-check desktop-sign-check ## Build a SIGNED + NOTARIZED macOS .app/.dmg (host; needs Apple creds — see clients/desktop/README.md)
+desktop-release: web desktop-check desktop-sign-check ## Build a SIGNED + NOTARIZED + STAPLED macOS .app/.dmg (host; needs Apple creds — see clients/desktop/README.md)
 	cd $(DESKTOP_DIR) && cargo tauri build
-	@echo "Signed + notarized bundle: $(DESKTOP_DIR)/target/release/bundle/"
+	@echo "Notarizing + stapling the .dmg (Tauri notarizes the .app but not the disk image)..."
+	@dmg=$$(ls -t $(DESKTOP_DIR)/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1); \
+		test -n "$$dmg" || { echo "ERROR: no .dmg found under $(DESKTOP_DIR)/target/release/bundle/dmg/"; exit 1; }; \
+		echo "  dmg: $$dmg"; \
+		xcrun notarytool submit "$$dmg" --key "$$APPLE_API_KEY_PATH" --key-id "$$APPLE_API_KEY" --issuer "$$APPLE_API_ISSUER" --wait && \
+		xcrun stapler staple "$$dmg" && \
+		xcrun stapler validate "$$dmg"
+	@echo "Signed + notarized + stapled bundle: $(DESKTOP_DIR)/target/release/bundle/"
 	@echo "Verify: codesign --verify --deep --strict --verbose=2 <app> ; spctl -a -vvv -t exec <app> ; xcrun stapler validate <dmg>"
 
 .PHONY: check
