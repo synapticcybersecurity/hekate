@@ -205,6 +205,14 @@ through the standard org / policy / token primitives.
 
 ### M7 — Hardening ⬜
 
+> **Publish gate.** No public binary (Apple `.app`, any store, signed
+> release) ships until the secure-coding standards
+> ([`secure-coding.md`](secure-coding.md)) are met and a comprehensive
+> security analysis is complete + remediated. See
+> [`followups.md`](followups.md) "Pre-publish security gate."
+
+- ✅ Rust secure-coding standards drafted ([`secure-coding.md`](secure-coding.md) + `sdlc_template/global-claude.md` §5)
+- ⬜ Internal security-analysis pass (tooling sweep + manual crypto review + panic/DoS triage + surface threat-model)
 - ⬜ External crypto audit
 - ⬜ External code audit
 - ⬜ Bug bounty

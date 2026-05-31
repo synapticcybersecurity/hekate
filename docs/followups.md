@@ -5,6 +5,28 @@ verification. Not for milestone-level status (that's
 [`status.md`](status.md)) and not for the shipped feature inventory
 (that's [`features.md`](features.md)). Update this file as items move.
 
+## ⛔ Pre-publish security gate (HARD)
+
+**No public binary ships before this is satisfied.** The first public
+binary will be the Apple notarized desktop `.app` (#8); the same gate
+applies to every store/signed-release channel after it.
+
+Required before signing/notarizing/publishing anything:
+1. **Rust secure-coding standards in place** — general hygiene in
+   `sdlc_template/global-claude.md` §5; Hekate crypto/protocol specifics
+   in [`secure-coding.md`](secure-coding.md). ✅ drafted 2026-05-30.
+2. **Comprehensive security analysis complete + findings remediated** —
+   tooling sweep (`/security-review`, `/code-review ultra`, `cargo deny`,
+   `cargo audit`, clippy `-D warnings`), manual crypto-call-site review,
+   panic/DoS triage of untrusted-input paths, threat-model of the shipped
+   surface. See [`secure-coding.md`](secure-coding.md) "Security-analysis
+   pass" and [`threat-model-gaps.md`](threat-model-gaps.md).
+3. **External crypto/code audit** — the internal pass makes us
+   audit-ready; for a password manager it does **not** substitute for an
+   independent audit (`status.md` M7).
+
+Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
+
 ## Smoke debts (verify before stacking more on top)
 
 ## Queued work (with kickoff plans)

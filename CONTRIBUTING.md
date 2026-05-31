@@ -103,6 +103,18 @@ pre-fill your PR body.
   document what you ran in `docs/followups.md` if you couldn't add
   an automated test.
 
+## Secure coding
+
+Hekate is a password manager built on custom crypto — read
+[`docs/secure-coding.md`](docs/secure-coding.md) before touching key
+material, AEAD call sites, auth, or any client secret-handling path. It
+covers the non-negotiables: constant-time comparison (`subtle`) for
+secrets, `zeroize` for key material, AAD/nonce discipline, no panics on
+untrusted input, and the frozen protocol identifiers. Note the
+**pre-publish security gate** there and in `docs/followups.md`: no public
+binary ships until those standards are met and a security analysis is
+complete.
+
 ## Sign-off (Developer Certificate of Origin)
 
 All commits must be signed off with `git commit -s`, asserting
