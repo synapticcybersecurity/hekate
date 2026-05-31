@@ -21,13 +21,25 @@
 use std::path::{Path, PathBuf};
 
 use axum::{
+    http::{header, HeaderValue},
     response::{Html, Redirect},
     routing::get,
     Router,
 };
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::AppState;
+
+/// M2 (issue #22): CSP for the web vault. The SPA holds the in-memory
+/// account key + refresh token, so scripts are locked to same-origin
+/// (`wasm-unsafe-eval` for the hekate-core WASM), framing is forbidden,
+/// and remote origins are denied. `style-src` keeps `'unsafe-inline'`
+/// because the SolidJS UI uses inline `style="..."` attributes — a
+/// stricter policy would break rendering.
+const SPA_CSP: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; \
+style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; \
+connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'";
 
 pub fn router(web_dir: Option<&str>) -> Router<AppState> {
     if let Some(dir) = web_dir {
@@ -59,6 +71,20 @@ fn spa_router(dir: &Path) -> Router<AppState> {
         .route("/send", get(|| async { Redirect::permanent("/send/") }))
         .nest_service("/web/", make_serve())
         .nest_service("/send/", make_serve())
+        // M2 (issue #22): lock down the SPA surface (scoped to these routes;
+        // not applied to the API or /docs, which need different policies).
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static(SPA_CSP),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
 }
 
 fn placeholder_router() -> Router<AppState> {
