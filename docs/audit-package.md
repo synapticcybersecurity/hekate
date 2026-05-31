@@ -34,6 +34,8 @@
 | Document | What the auditor gets |
 |---|---|
 | [`design.md`](design.md) | Primary spec: architecture, the crypto stack (Argon2id KDF, HKDF subkeys, EncString XChaCha20-Poly1305 envelope + AAD binding, per-cipher keys, signed BW04 manifest, signcryption envelope, `PMGRA1` chunked-AEAD attachments/Sends), token formats, data model, milestone map (§13). |
+| [`key-hierarchy.md`](key-hierarchy.md) | The consolidated key-derivation tree, key inventory (origin / where it lives / wrap key / AAD), the EncString envelope, the signing/DST table, server token material, and rotation — all with `file:line` citations. Opens with the `pmgr`/`PMGRA1` protocol-frozen-identifier explanation. |
+| [`audit-scope.md`](audit-scope.md) | Engagement brief: subject + commit baseline, in/out-of-scope components, trust model & assumptions, and deliverables sought. |
 | [`api.md`](api.md) | HTTP API surface — every endpoint, auth requirements, request/response shapes. The attack surface to enumerate. |
 | `README.md` (top of contents in `CLAUDE.md`) | The **protocol-frozen identifiers** split (`pmgr-…` AAD strings, `pmgr_sat_*`/`pmgr_pat_*` token prefixes, `PMGRA1` magic baked into ciphertexts). Critical for understanding why some byte literals must not change. |
 
@@ -74,16 +76,15 @@ Documents/artifacts a thorough auditor will expect that we don't yet have
 as standalone deliverables (some content exists inside `design.md` and
 should be extracted/linked):
 
-- [ ] **Key hierarchy / lifecycle diagram** — the full derivation tree
-      (master password → `master_key` → auth/stretched/signing subkeys →
-      `account_key` → per-cipher keys → org sym keys → Send keys),
-      with where each lives, how each is wrapped, and rotation paths.
-      Partially in `design.md`; not consolidated as one diagram.
+- [x] **Key hierarchy / lifecycle diagram** — ✅
+      [`key-hierarchy.md`](key-hierarchy.md): full derivation tree, key
+      inventory, EncString envelope, DST/AAD tables, and rotation, with
+      `file:line` citations.
 - [ ] **Data-flow / trust-boundary diagram** — client ↔ server, what
       crosses each boundary in plaintext vs ciphertext, where AAD binds.
-- [ ] **Written audit scope statement** — formalize the in/out-of-scope
-      list above into the engagement brief (commit hash, components,
-      explicitly excluded M5/M6/managed-service).
+- [x] **Written audit scope statement** — ✅
+      [`audit-scope.md`](audit-scope.md): subject + commit baseline,
+      in/out-of-scope, trust model, deliverables.
 - [ ] **SBOM** — dependency bill of materials for a tagged build
       (tracked in `status.md` M7 / `followups.md`).
 - [ ] **Reproducible-build attestation** — so the auditor can verify the
