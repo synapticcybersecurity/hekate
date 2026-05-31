@@ -13,6 +13,7 @@
 import { createSignal, For, Match, onMount, Show, Switch } from "solid-js";
 
 import { ApiError } from "../../lib/api";
+import { alertDialog, confirmDialog } from "../../lib/dialog";
 import {
   commitPin,
   loadPeerPins,
@@ -84,7 +85,7 @@ export function PeerPins(props: PeerPinsProps) {
         // resolvePeer may have backfilled email on the stored pin;
         // pull a fresh list so the row updates immediately.
         refreshList();
-        window.alert(
+        void alertDialog(
           `Already pinned — fingerprint matches.\n\n${result.pin.fingerprint}\n\nFirst seen: ${result.pin.first_seen_at}`,
         );
         return;
@@ -110,11 +111,12 @@ export function PeerPins(props: PeerPinsProps) {
     setPhase({ kind: "list" });
   }
 
-  function onUnpin(userId: string) {
+  async function onUnpin(userId: string) {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Unpin ${userId}?\n\nThis is a security-relevant action — you should only unpin after verifying out-of-band that the peer rotated their keys legitimately, OR if you're sure you want to drop this trust anchor.`,
-      )
+        { okLabel: "Unpin", danger: true },
+      ))
     ) {
       return;
     }

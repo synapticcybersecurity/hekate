@@ -14,6 +14,7 @@ import { render } from "solid-js/web";
 import { Recipient } from "./routes/recipient/Recipient";
 import { Owner } from "./routes/owner/Owner";
 import { DesktopOwner } from "./routes/desktop/DesktopOwner";
+import { DialogHost } from "./ui/DialogHost";
 import { isDesktop } from "./lib/config";
 
 const root = document.getElementById("app");
@@ -27,13 +28,37 @@ root.replaceChildren();
 
 const path = window.location.pathname;
 if (path.startsWith("/send")) {
-  render(() => <Recipient />, root);
+  render(
+    () => (
+      <>
+        <Recipient />
+        <DialogHost />
+      </>
+    ),
+    root,
+  );
 } else if (isDesktop()) {
   // Desktop shell: gate owner mode behind first-run server selection,
   // since the app isn't served by (same-origin with) any server.
-  render(() => <DesktopOwner />, root);
+  render(
+    () => (
+      <>
+        <DesktopOwner />
+        <DialogHost />
+      </>
+    ),
+    root,
+  );
 } else {
   // Owner mode is the default landing — works whether the SPA is
   // hosted at /web/ in production or at / under `vite dev`.
-  render(() => <Owner />, root);
+  render(
+    () => (
+      <>
+        <Owner />
+        <DialogHost />
+      </>
+    ),
+    root,
+  );
 }

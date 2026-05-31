@@ -28,6 +28,7 @@ import {
 } from "../../lib/cipher";
 import { deleteCipher, saveCipher, type CipherDraft } from "../../lib/cipherWrite";
 import { copy } from "../../lib/clipboard";
+import { confirmDialog } from "../../lib/dialog";
 import { uploadManifestQuiet } from "../../lib/manifest";
 import { generatePassword } from "../../lib/passwordGen";
 import { getSession } from "../../lib/session";
@@ -118,7 +119,13 @@ export function EditCipher(props: EditCipherProps) {
 
   async function onMoveToTrash() {
     if (!props.existing) return;
-    if (!window.confirm(`Move "${name() || "this item"}" to trash?`)) return;
+    if (
+      !(await confirmDialog(`Move "${name() || "this item"}" to trash?`, {
+        okLabel: "Move to trash",
+        danger: true,
+      }))
+    )
+      return;
     setSubmitting(true);
     setError(null);
     try {

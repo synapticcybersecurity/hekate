@@ -20,6 +20,7 @@
 import { createSignal, For, Match, onMount, Show, Switch } from "solid-js";
 
 import { ApiError } from "../../lib/api";
+import { alertDialog, confirmDialog, promptDialog } from "../../lib/dialog";
 import { loadHekateCore } from "../../wasm";
 import { getSession } from "../../lib/session";
 import {
@@ -340,17 +341,17 @@ export function TwoFactorSettings(props: TwoFactorSettingsProps) {
   }
 
   async function onWebauthnRename(id: string, current: string): Promise<void> {
-    const next = window.prompt("New name:", current);
+    const next = await promptDialog("New name:", current);
     if (next == null) return;
     const trimmed = next.trim();
     if (!trimmed || trimmed.length > 64) {
-      window.alert("Name must be 1..64 characters.");
+      await alertDialog("Name must be 1..64 characters.");
       return;
     }
     try {
       await webauthnRenameCredential(id, trimmed);
     } catch (err) {
-      window.alert(`Rename failed: ${errMsg(err)}`);
+      await alertDialog(`Rename failed: ${errMsg(err)}`);
       return;
     }
     await refreshStatus();
@@ -358,16 +359,17 @@ export function TwoFactorSettings(props: TwoFactorSettingsProps) {
 
   async function onWebauthnDelete(id: string, name: string): Promise<void> {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Delete credential "${name}"? You'll no longer be able to authenticate with it. This cannot be undone.`,
-      )
+        { okLabel: "Delete", danger: true },
+      ))
     ) {
       return;
     }
     try {
       await webauthnDeleteCredential(id);
     } catch (err) {
-      window.alert(`Delete failed: ${errMsg(err)}`);
+      await alertDialog(`Delete failed: ${errMsg(err)}`);
       return;
     }
     await refreshStatus();

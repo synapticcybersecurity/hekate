@@ -7,6 +7,7 @@
 import { createSignal, For, Match, onMount, Show, Switch } from "solid-js";
 
 import { ApiError } from "../../lib/api";
+import { confirmDialog } from "../../lib/dialog";
 import {
   createCollection,
   deleteCollection,
@@ -78,9 +79,10 @@ export function Collections(props: CollectionsProps) {
 
   async function onDelete(c: DecodedCollection) {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Delete collection "${c.decryptedName}"? Ciphers in it will lose the org-side membership.`,
-      )
+        { okLabel: "Delete", danger: true },
+      ))
     ) {
       return;
     }

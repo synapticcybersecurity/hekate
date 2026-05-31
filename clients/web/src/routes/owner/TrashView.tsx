@@ -14,6 +14,7 @@ import {
 } from "solid-js";
 
 import { ApiError, SessionExpiredError } from "../../lib/api";
+import { confirmDialog } from "../../lib/dialog";
 import {
   decryptForList,
   type CipherView,
@@ -113,7 +114,12 @@ export function TrashView(props: TrashViewProps) {
   }
 
   async function onPurge(id: string, name: string) {
-    if (!window.confirm(`Permanently delete "${name}"? This cannot be undone.`)) {
+    if (
+      !(await confirmDialog(`Permanently delete "${name}"? This cannot be undone.`, {
+        okLabel: "Delete",
+        danger: true,
+      }))
+    ) {
       return;
     }
     setBusyId(id);
