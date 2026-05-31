@@ -12,9 +12,10 @@ binary will be the Apple notarized desktop `.app` (#8); the same gate
 applies to every store/signed-release channel after it.
 
 Required before signing/notarizing/publishing anything:
-1. **Rust secure-coding standards in place** — general hygiene in
-   `sdlc_template/global-claude.md` §5; Hekate crypto/protocol specifics
-   in [`secure-coding.md`](secure-coding.md). ✅ drafted 2026-05-30.
+1. **Rust secure-coding standards in place** — general hygiene in the
+   shared Rust stack template (`sdlc_template/project-claude-template-rust.md`);
+   Hekate crypto/protocol specifics in [`secure-coding.md`](secure-coding.md).
+   ✅ drafted 2026-05-30.
 2. **Comprehensive security analysis complete + findings remediated** —
    tooling sweep (`/security-review`, `/code-review ultra`, `cargo deny`,
    `cargo audit`, clippy `-D warnings`), manual crypto-call-site review,

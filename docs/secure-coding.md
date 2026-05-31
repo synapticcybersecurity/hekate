@@ -3,8 +3,9 @@
 Hekate is a password manager built on custom cryptography — the
 highest-stakes software category. These are the **project-specific**
 secure-coding rules that sit on top of the general Rust hygiene in the
-shared standards (`sdlc_template/global-claude.md` §5). Where the global
-file says "compare secrets in constant time" or "zero sensitive memory,"
+shared Rust stack template (`sdlc_template/project-claude-template-rust.md`).
+Where that template says "compare secrets in constant time" or "zero
+sensitive memory,"
 this document says *which* secrets, *where*, and *with what invariants*
 for Hekate specifically.
 

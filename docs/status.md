@@ -211,7 +211,7 @@ through the standard org / policy / token primitives.
 > security analysis is complete + remediated. See
 > [`followups.md`](followups.md) "Pre-publish security gate."
 
-- ✅ Rust secure-coding standards drafted ([`secure-coding.md`](secure-coding.md) + `sdlc_template/global-claude.md` §5)
+- ✅ Rust secure-coding standards drafted ([`secure-coding.md`](secure-coding.md) + general hygiene in the shared `sdlc_template/project-claude-template-rust.md`)
 - ⬜ Internal security-analysis pass (tooling sweep + manual crypto review + panic/DoS triage + surface threat-model)
 - ⬜ External crypto audit
 - ⬜ External code audit
