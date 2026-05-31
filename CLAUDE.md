@@ -1,6 +1,6 @@
 # Project Standards
 
-This file extends the global `~/.claude/CLAUDE.md` and defines conventions specific to **hekate** — a self-hosted, Bitwarden-compatible password/secrets manager (pre-alpha). It only covers what changes behavior here; the global standards still apply. For the full contributor workflow see `CONTRIBUTING.md`; for design/threat docs see `docs/`.
+This file extends the global `~/.claude/CLAUDE.md` and defines conventions specific to **hekate** — a self-hosted, Bitwarden-compatible password/secrets manager (alpha). It only covers what changes behavior here; the global standards still apply. For the full contributor workflow see `CONTRIBUTING.md`; for design/threat docs see `docs/`.
 
 ---
 
@@ -105,7 +105,7 @@ CI runs `fmt --check` + `clippy -D warnings` + `test`. All must pass before mark
 
 ## Project Architecture
 
-**Application type:** Self-hosted, Bitwarden-compatible password/secrets manager (pre-alpha).
+**Application type:** Self-hosted, Bitwarden-compatible password/secrets manager (alpha).
 
 **Workspace crates:**
 - `hekate-core/` — domain + cryptography; also compiles to `wasm32` for the web/extension clients
