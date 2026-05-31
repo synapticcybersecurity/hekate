@@ -5,19 +5,28 @@
 use std::io::{self, BufRead, IsTerminal, Write};
 
 use anyhow::Result;
+use zeroize::{Zeroize, Zeroizing};
 
-pub fn password(prompt: &str) -> Result<String> {
+/// Read a secret (master password, KDBX/export passphrase) without echo
+/// when interactive. Returns it in a `Zeroizing<String>` so the plaintext
+/// is wiped from memory on drop (E3, issue #18) — it's the crown-jewel
+/// secret and must not linger after the master key is derived.
+pub fn password(prompt: &str) -> Result<Zeroizing<String>> {
     eprint!("{prompt}");
     io::stderr().flush()?;
     if io::stdin().is_terminal() {
-        Ok(rpassword::read_password()?)
+        Ok(Zeroizing::new(rpassword::read_password()?))
     } else {
         let mut line = String::new();
         io::stdin().lock().read_line(&mut line)?;
-        Ok(line
-            .trim_end_matches('\n')
-            .trim_end_matches('\r')
-            .to_string())
+        let trimmed = Zeroizing::new(
+            line.trim_end_matches('\n')
+                .trim_end_matches('\r')
+                .to_string(),
+        );
+        // Wipe the intermediate read buffer; only the Zeroizing copy survives.
+        line.zeroize();
+        Ok(trimmed)
     }
 }
 

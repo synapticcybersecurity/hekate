@@ -50,7 +50,7 @@ pub fn run(args: Args) -> Result<()> {
     println!("Choose a strong master password — you cannot recover the vault if you forget it.");
     let pw = prompt::password("Master password: ")?;
     let pw2 = prompt::password("Repeat master password: ")?;
-    if pw != pw2 {
+    if *pw != *pw2 {
         return Err(anyhow!("passwords did not match"));
     }
     if pw.len() < 8 {
