@@ -7,6 +7,7 @@ use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
+use zeroize::Zeroize;
 
 use crate::daemon::{socket_path, Request, Response, StatusInfo};
 
@@ -41,18 +42,24 @@ fn send(req: Request) -> Result<Response> {
     }
     let mut buf = vec![0u8; len];
     stream.read_exact(&mut buf)?;
-    Ok(serde_json::from_slice(&buf)?)
+    let parsed = serde_json::from_slice(&buf)?;
+    // L1 (issue #22): the response buffer may hold base64 key/seed material.
+    buf.zeroize();
+    Ok(parsed)
 }
 
 pub fn get_unlocked() -> Result<([u8; 32], [u8; 32])> {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     match send(Request::GetUnlocked)? {
         Response::Unlocked {
-            account_key_b64,
-            signing_seed_b64,
+            mut account_key_b64,
+            mut signing_seed_b64,
         } => {
-            let key = URL_SAFE_NO_PAD.decode(&account_key_b64)?;
-            let seed = URL_SAFE_NO_PAD.decode(&signing_seed_b64)?;
+            let mut key = URL_SAFE_NO_PAD.decode(&account_key_b64)?;
+            let mut seed = URL_SAFE_NO_PAD.decode(&signing_seed_b64)?;
+            // L1 (issue #22): wipe the base64 carriers as soon as decoded.
+            account_key_b64.zeroize();
+            signing_seed_b64.zeroize();
             if key.len() != 32 {
                 return Err(anyhow!("daemon returned account key of wrong length"));
             }
@@ -63,6 +70,10 @@ pub fn get_unlocked() -> Result<([u8; 32], [u8; 32])> {
             k.copy_from_slice(&key);
             let mut s = [0u8; 32];
             s.copy_from_slice(&seed);
+            // Wipe the decoded heap copies; only the [u8;32] arrays survive
+            // (and the caller wraps those in Zeroizing).
+            key.zeroize();
+            seed.zeroize();
             Ok((k, s))
         }
         Response::Err { message } => Err(anyhow!("daemon: {message}")),
