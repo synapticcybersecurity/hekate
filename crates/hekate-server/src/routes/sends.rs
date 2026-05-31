@@ -1074,11 +1074,36 @@ async fn public_blob_download(
             return Err(gone("download token has expired — request a new /access"));
         }
     }
-    let bytes = state
+    // H1 (issue #22): stream the blob in bounded chunks rather than
+    // buffering the whole file into RAM. This endpoint is anonymous and
+    // the token is reusable within its TTL, so a full-file read let an
+    // attacker pin up to `max_attachment_bytes` (default 100 MiB) resident
+    // per in-flight request — a memory-amplification DoS. Streaming caps
+    // per-request memory at one chunk.
+    let total = state
         .blob
-        .read_full(&storage_key)
+        .len(&storage_key)
         .await
-        .map_err(|e| ApiError::internal(format!("blob read: {e}")))?;
+        .map_err(|e| ApiError::internal(format!("blob len: {e}")))?;
+    const STREAM_CHUNK: u64 = 64 * 1024;
+    let store = state.blob.clone();
+    let stream = futures_util::stream::unfold(0u64, move |offset| {
+        let store = store.clone();
+        let storage_key = storage_key.clone();
+        async move {
+            if offset >= total {
+                return None;
+            }
+            let take = STREAM_CHUNK.min(total - offset);
+            match store.read_range(&storage_key, offset, take).await {
+                Ok(buf) => Some((Ok::<Bytes, std::io::Error>(Bytes::from(buf)), offset + take)),
+                Err(e) => Some((
+                    Err(std::io::Error::other(e.to_string())),
+                    total, // stop after surfacing the error
+                )),
+            }
+        }
+    });
     let mut h = HeaderMap::new();
     h.insert(
         header::CONTENT_TYPE,
@@ -1086,9 +1111,9 @@ async fn public_blob_download(
     );
     h.insert(
         header::CONTENT_LENGTH,
-        HeaderValue::from_str(&bytes.len().to_string()).expect("usize fits"),
+        HeaderValue::from_str(&total.to_string()).expect("u64 fits"),
     );
-    Ok((StatusCode::OK, h, bytes).into_response())
+    Ok((StatusCode::OK, h, axum::body::Body::from_stream(stream)).into_response())
 }
 
 // =====================================================================
