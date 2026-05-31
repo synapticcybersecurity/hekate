@@ -33,7 +33,7 @@ use crate::{
         VaultManifest, ATTACHMENTS_ROOT_LEN, NO_ATTACHMENTS_ROOT,
     },
 };
-use ed25519_dalek::{Signature, Verifier};
+use ed25519_dalek::Signature;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
