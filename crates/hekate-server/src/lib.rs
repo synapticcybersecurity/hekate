@@ -125,9 +125,38 @@ pub fn build_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// Read (or create-and-persist) a 32-byte per-deployment pepper under the
+/// data dir, so the prelogin fake-salt is stable across restarts (M3,
+/// issue #22). 0600 on unix.
+fn resolve_persistent_pepper(attachments_dir: &str) -> anyhow::Result<Vec<u8>> {
+    use rand::RngCore;
+    let path = std::path::Path::new(attachments_dir).join(".fake_salt_pepper");
+    if let Ok(bytes) = std::fs::read(&path) {
+        if bytes.len() == 32 {
+            return Ok(bytes);
+        }
+    }
+    let mut p = vec![0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut p);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, &p)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    tracing::info!(
+        "generated a persistent fake_salt_pepper under the data dir; \
+         set HEKATE_FAKE_SALT_PEPPER to override (required for multi-instance deployments)"
+    );
+    Ok(p)
+}
+
 /// Connect to the DB, run migrations, bootstrap signing key. Used by both
 /// production startup and tests.
-pub async fn bootstrap(cfg: Config) -> anyhow::Result<AppState> {
+pub async fn bootstrap(mut cfg: Config) -> anyhow::Result<AppState> {
     let db = Db::connect(&cfg.database_url).await?;
     db.migrate().await?;
     let signer = Signer::bootstrap(db.pool()).await?;
@@ -162,6 +191,13 @@ pub async fn bootstrap(cfg: Config) -> anyhow::Result<AppState> {
     // prunes expired in-progress uploads. Mirrors the webhooks
     // dispatcher pattern: long-lived task on the same tokio runtime.
     attachments_gc::spawn(db.pool().clone(), blob.clone());
+    // M3 (issue #22): resolve a stable fake-salt pepper if not explicitly
+    // configured, persisted under the data dir so it survives restarts
+    // (otherwise prelogin becomes an account-existence oracle across
+    // restarts). Skipped when the operator set HEKATE_FAKE_SALT_PEPPER.
+    if cfg.fake_salt_pepper.is_empty() {
+        cfg.fake_salt_pepper = resolve_persistent_pepper(&attachments_dir)?;
+    }
     Ok(AppState {
         db,
         config: Arc::new(cfg),

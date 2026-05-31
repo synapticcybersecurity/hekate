@@ -161,13 +161,15 @@ fn default_web_dir() -> Option<String> {
 }
 
 fn default_fake_salt_pepper() -> Vec<u8> {
-    use rand::RngCore;
-    // Generated once per process if not configured. For deterministic
-    // responses across restarts, set `HEKATE_FAKE_SALT_PEPPER` to a base64
-    // value via env or hekate.toml.
-    let mut p = vec![0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut p);
-    p
+    // M3 (issue #22): default to EMPTY, not a fresh random per process. A
+    // per-process random pepper changes the prelogin fake-salt for unknown
+    // emails on every restart while a real user's salt stays fixed, which
+    // turns the anti-enumeration defense into an account-existence oracle
+    // across restarts. When this is empty and `HEKATE_FAKE_SALT_PEPPER` is
+    // unset, `bootstrap` resolves a per-deployment pepper persisted under
+    // the data dir (stable across restarts). Set `HEKATE_FAKE_SALT_PEPPER`
+    // explicitly to override (required for multi-instance deployments).
+    Vec::new()
 }
 
 impl Default for Config {
