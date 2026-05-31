@@ -33,6 +33,7 @@ use hekate_core::{
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -589,12 +590,16 @@ async fn public_access(
         let mut tok_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut tok_bytes);
         let token = URL_SAFE_NO_PAD.encode(tok_bytes);
+        // E2 (issue #18): store only a hash of the token at rest, mirroring
+        // the PAT/SAT/refresh hash-at-rest pattern. The plaintext token is
+        // returned to the caller below and never persisted.
+        let token_hash = hash_download_token(&token);
         let expires_at = (Utc::now() + Duration::minutes(5)).to_rfc3339();
         sqlx::query(
-            "INSERT INTO send_download_tokens (token, send_id, expires_at)
+            "INSERT INTO send_download_tokens (token_hash, send_id, expires_at)
              VALUES ($1, $2, $3)",
         )
-        .bind(&token)
+        .bind(&token_hash)
         .bind(&id)
         .bind(&expires_at)
         .execute(state.db.pool())
@@ -662,6 +667,10 @@ async fn send_upload_create(
     })?;
     if size_pt < 0 {
         return Err(ApiError::bad_request("size_pt must be >= 0"));
+    }
+    // Bound size_pt before any size arithmetic (E1, issue #18).
+    if size_pt as u64 > state.config.max_attachment_bytes {
+        return Err(ApiError::bad_request("size_pt exceeds the maximum size"));
     }
     let expected_ct = ciphertext_size_for(size_pt as u64);
     if expected_ct != upload_length {
@@ -1028,19 +1037,31 @@ async fn send_finalize_upload(
     Ok(())
 }
 
+/// Domain-separated hash of a Send download token, stored at rest in place
+/// of the plaintext token (E2, issue #18). Mirrors the PAT/SAT/refresh
+/// `hash_secret` pattern. SHA-256 over a unique DST + the token string.
+fn hash_download_token(token: &str) -> String {
+    let mut h = Sha256::new();
+    h.update(b"pmgr-send-dl-v1");
+    h.update(token.as_bytes());
+    URL_SAFE_NO_PAD.encode(h.finalize())
+}
+
 /// `GET /api/v1/public/sends/{id}/blob/{token}` — anonymous download.
 /// Token comes from `/access`; valid for 5 minutes from issue.
 async fn public_blob_download(
     State(state): State<AppState>,
     Path((id, token)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
+    // E2 (issue #18): look up by the token hash, never the plaintext.
+    let token_hash = hash_download_token(&token);
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT t.expires_at, s.storage_key
          FROM send_download_tokens t
          JOIN sends s ON s.id = t.send_id
-         WHERE t.token = $1 AND t.send_id = $2 AND s.body_status = 1",
+         WHERE t.token_hash = $1 AND t.send_id = $2 AND s.body_status = 1",
     )
-    .bind(&token)
+    .bind(&token_hash)
     .bind(&id)
     .fetch_optional(state.db.pool())
     .await

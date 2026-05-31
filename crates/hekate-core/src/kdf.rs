@@ -86,7 +86,8 @@ pub type MasterKey = Zeroizing<[u8; 32]>;
 pub type StretchedMasterKey = Zeroizing<[u8; 32]>;
 
 /// 32-byte master password hash (proof of knowledge sent to server).
-pub type MasterPasswordHash = [u8; 32];
+/// Zeroized on drop — it's a password-equivalent credential (E5, issue #18).
+pub type MasterPasswordHash = Zeroizing<[u8; 32]>;
 
 /// 32-byte HMAC-SHA256 tag binding the KDF parameters (and salt) to the
 /// master key.
@@ -117,7 +118,7 @@ pub fn derive_master_key(password: &[u8], params: KdfParams, salt: &[u8]) -> Res
 
 /// Derive the master password hash sent to the server.
 pub fn derive_master_password_hash(master_key: &MasterKey) -> MasterPasswordHash {
-    hkdf_expand_32(master_key.as_ref(), HKDF_INFO_AUTH)
+    Zeroizing::new(hkdf_expand_32(master_key.as_ref(), HKDF_INFO_AUTH))
 }
 
 /// Derive the stretched master key used for wrapping account material.
@@ -249,7 +250,7 @@ mod tests {
         let mk = derive_master_key(b"pw", fast_params(), &[0u8; 16]).unwrap();
         let auth = derive_master_password_hash(&mk);
         let wrap = derive_stretched_master_key(&mk);
-        assert_ne!(auth, *wrap.as_ref());
+        assert_ne!(&auth[..], &wrap[..]);
     }
 
     #[test]
@@ -398,7 +399,7 @@ mod tests {
         let auth = derive_master_password_hash(&mk);
         let wrap = derive_stretched_master_key(&mk);
         let bind = derive_kdf_bind_key(&mk);
-        assert_ne!(auth, *bind.as_ref());
+        assert_ne!(&auth[..], &bind[..]);
         assert_ne!(*wrap.as_ref(), *bind.as_ref());
     }
 }

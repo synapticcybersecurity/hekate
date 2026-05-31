@@ -170,7 +170,13 @@ pub fn ciphertext_size_for(pt_size: u64) -> u64 {
         return HEADER_LEN as u64;
     }
     let n_chunks = pt_size.div_ceil(CHUNK_SIZE as u64);
-    HEADER_LEN as u64 + n_chunks * TAG_LEN as u64 + pt_size
+    // Saturating arithmetic: an attacker-supplied `pt_size` near u64::MAX
+    // must not wrap (release) or panic (debug). A saturated result can
+    // never equal a real, size-capped `Upload-Length`, so the handler's
+    // `expected_ct == upload_length` check rejects it. (E1, issue #18.)
+    (HEADER_LEN as u64)
+        .saturating_add(n_chunks.saturating_mul(TAG_LEN as u64))
+        .saturating_add(pt_size)
 }
 
 /// Inverse of `ciphertext_size_for`. Returns the plaintext size that
@@ -541,6 +547,16 @@ mod tests {
             // Inverse holds.
             assert_eq!(plaintext_size_for(ct.len() as u64).unwrap(), pt_size);
         }
+    }
+
+    #[test]
+    fn ciphertext_size_for_saturates_on_huge_input() {
+        // E1 (issue #18): an attacker-supplied size near u64::MAX must not
+        // panic (debug) or wrap (release). It saturates to u64::MAX, which
+        // can never equal a real, size-capped Upload-Length, so the handler
+        // rejects it.
+        assert_eq!(ciphertext_size_for(u64::MAX), u64::MAX);
+        assert_eq!(ciphertext_size_for(u64::MAX - 1), u64::MAX);
     }
 
     #[test]

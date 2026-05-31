@@ -83,13 +83,13 @@ fn change_password() -> Result<()> {
     let cur_pw = prompt::password("Current master password: ")?;
     let new_pw = prompt::password("New master password: ")?;
     let new_pw2 = prompt::password("Repeat new master password: ")?;
-    if new_pw != new_pw2 {
+    if *new_pw != *new_pw2 {
         return Err(anyhow!("new passwords did not match"));
     }
     if new_pw.len() < 8 {
         return Err(anyhow!("new master password must be at least 8 characters"));
     }
-    if cur_pw == new_pw {
+    if *cur_pw == *new_pw {
         return Err(anyhow!(
             "new master password must differ from the current one"
         ));
@@ -99,7 +99,7 @@ fn change_password() -> Result<()> {
     // across the orgs we belong to and apply max strictness to the
     // candidate password before any keys are derived.
     if let Some(agg) = crate::policies::fetch_aggregate(&api)? {
-        crate::policies::enforce_master_password(&new_pw, &agg.complexity)?;
+        crate::policies::enforce_master_password(new_pw.as_str(), &agg.complexity)?;
     }
 
     println!("Deriving keys (Argon2id, twice — this is the slow part)...");
@@ -516,7 +516,7 @@ fn export(args: ExportArgs) -> Result<()> {
 
     let pw = prompt::password("Export password (used to encrypt the file): ")?;
     let pw2 = prompt::password("Repeat export password: ")?;
-    if pw != pw2 {
+    if *pw != *pw2 {
         return Err(anyhow!("export passwords did not match"));
     }
     if pw.len() < 8 {

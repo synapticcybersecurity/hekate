@@ -293,7 +293,7 @@ pub struct CreateTokenRequest {
     pub expires_in_days: Option<i64>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct CreateTokenResponse {
     pub id: String,
     /// **Only returned once.** Wire format `pmgr_sat_<id>.<secret>`.
@@ -301,6 +301,20 @@ pub struct CreateTokenResponse {
     pub name: String,
     pub scopes: String,
     pub expires_at: Option<String>,
+}
+
+impl std::fmt::Debug for CreateTokenResponse {
+    // E4 (issue #18): redact the one-time token from Debug output; it still
+    // serializes to JSON (Serialize) for the intended one-time response.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreateTokenResponse")
+            .field("id", &self.id)
+            .field("token", &"<redacted>")
+            .field("name", &self.name)
+            .field("scopes", &self.scopes)
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 #[utoipa::path(
