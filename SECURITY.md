@@ -6,7 +6,7 @@ explains how to report them and what to expect in return.
 
 ## Supported versions
 
-Hekate is pre-alpha. Only the latest commit on `main` is supported;
+Hekate is in alpha. Only the latest commit on `main` is supported;
 there are no LTS branches, no backported security fixes, and no
 binary releases yet. If you find a vulnerability, expect the fix to
 land on `main` and not in a tagged release.

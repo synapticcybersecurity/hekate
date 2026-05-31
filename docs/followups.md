@@ -154,7 +154,7 @@ primitives.
   keypair co-owner-set. Adds rotation envelopes (Flow A),
   recovery-owner identity primitive, strong-mode opt-out, and
   audit + alerting throughout. Multi-owner required when an org
-  has non-owner members. Pre-alpha → no migration; ship v2
+  has non-owner members. Alpha → no migration; ship v2
   schema directly. Session kickoff prompt at the bottom of the
   spec doc.
 

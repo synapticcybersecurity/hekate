@@ -1,6 +1,6 @@
 # Contributing to Hekate
 
-Thanks for your interest. This is a pre-alpha project under active
+Thanks for your interest. This is an alpha project under active
 development; the contribution flow is still light.
 
 ## Before you start

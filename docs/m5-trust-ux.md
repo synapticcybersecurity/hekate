@@ -999,7 +999,7 @@ decided before code lands:
 
 ## Implementation guardrails (when M5 v1 work begins)
 
-- **Pre-alpha, no production users.** Ship v2 schema directly;
+- **Alpha, no production users.** Ship v2 schema directly;
   no migration from v1.
 - **Multi-owner invariant** required for orgs with non-owner
   members (single-owner orgs and all-owner orgs are exempt).

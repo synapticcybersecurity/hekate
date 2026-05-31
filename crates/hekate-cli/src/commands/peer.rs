@@ -52,7 +52,7 @@ pub enum Action {
         fingerprint: String,
     },
     /// Drop a pin. Required before a legitimate peer-key rotation can
-    /// be re-pinned. Pre-alpha: requires `--yes` so the security-
+    /// be re-pinned. Alpha: requires `--yes` so the security-
     /// relevant action isn't a typo.
     Unpin {
         user_id: String,
