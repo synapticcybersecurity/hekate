@@ -10,11 +10,14 @@ findings here are **new** (do not overlap E1–E8 or M5 F1–F4).
 > **Status & limits.** Automated multi-agent pass; each finding was
 > adversarially re-checked against the code, but this still does **not**
 > replace an independent external audit (pre-publish gate, `status.md`
-> M7). **Coverage gap:** the `authn` dimension's verification stage
-> errored mid-run, so authentication findings (if any) were dropped
-> unverified — that dimension should be re-run.
+> M7). The `authn` dimension's verification errored on the first run and
+> was **re-run** (see "Authn re-run" below) — coverage gap closed.
 
-8 candidates → **5 confirmed** (3 refuted by the adversarial pass).
+8 candidates → **5 confirmed** (3 refuted by the adversarial pass). The
+authn re-run added **2 more confirmed** (4 candidates → 2).
+
+**Fix status:** H1 + M1–M3 + L1 and **M-A1** are fixed (PRs #23). **M-A2**
+is a tracked hardening milestone (see below).
 
 ---
 
@@ -64,6 +67,42 @@ The unlock daemon serializes the account key + signing seed into plain base64 `S
 **Fix:** wrap the transient carriers in `Zeroizing` end-to-end and zeroize the JSON body buffers.
 
 ---
+
+## Authn re-run (2026-05-31)
+
+The `authn` dimension was re-run (3 finders: tokens/session, password/
+enumeration, 2FA/recovery; each verdict wrapped so a verifier error can't
+drop the dimension). 4 candidates → **2 confirmed**, 0 uncertain.
+
+### M-A1 (MEDIUM) — disabling 2FA didn't revoke refresh tokens — ✅ FIXED (PR #23)
+`totp_disable` (`routes/two_factor.rs`) rotated `security_stamp` and its
+docstring promised "revoking all other sessions," but — unlike the sibling
+stamp-rotating handlers (`totp_confirm`, change-password, rotate-keys) — it
+omitted the `UPDATE refresh_tokens SET revoked_at` step. `refresh::rotate`
+never checks the stamp, so a **leaked refresh token survived a 2FA-disable**
+and could be exchanged for a fresh full-scope JWT for up to the 30-day
+refresh TTL — silently breaking the handler's documented session-eviction
+contract. (Mitigated: disabling 2FA requires the master password, so this
+is a secondary session-eviction gap, not a primary bypass.)
+**Fix:** added the refresh-token revocation to the `totp_disable`
+transaction; extended `tests/tfa.rs::disable_drops_2fa_and_codes` to assert
+a pre-disable refresh token is rejected afterward.
+
+### M-A2 (MEDIUM) — no per-account brute-force lockout / alerting — ⬜ tracked milestone
+The only auth throttle is the per-IP governor (`rate_limit.rs`); there is
+**no per-`user_id` failed-attempt counter, lockout, backoff, or alerting**
+on the password grant or the 2FA/recovery legs. An attacker distributing
+source IPs gets N×/min against one account with no account-side resistance
+and no notification. Compounded by the TOTP **±1 step window** (3 valid
+codes per guess). Severity held at medium: the password leg fights
+double-Argon2id (only weak/reused passwords are realistically reachable)
+and distributed TOTP brute-force needs large IP diversity against rotating
+30s windows — but the total absence of a per-account ceiling **and** any
+alerting is a genuine hardening gap.
+**Deferred** (own milestone — needs persisted per-account failure state +
+lockout/backoff + audit/alerting, per the "logging + alerting alongside
+every security design" standard). Also: tighten the TOTP window to ±0 (or
+document why ±1), and cap the recovery-code verification loop.
 
 ## Bottom line
 
