@@ -215,6 +215,26 @@ desktop-build: web desktop-check ## Build the web SPA (Docker) then bundle a mac
 	cd $(DESKTOP_DIR) && cargo tauri build
 	@echo "Desktop bundle: $(DESKTOP_DIR)/target/release/bundle/"
 
+.PHONY: desktop-sign-check
+desktop-sign-check: ## Verify Developer ID cert + notarization env are present (macOS)
+	@security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application" || { echo "ERROR: no 'Developer ID Application' identity in the keychain — see clients/desktop/README.md (Code signing)."; exit 1; }
+	@test -n "$$APPLE_SIGNING_IDENTITY" || { echo "ERROR: APPLE_SIGNING_IDENTITY not set (e.g. 'Developer ID Application: NAME (TEAMID)') — see clients/desktop/README.md."; exit 1; }
+	@test -n "$$APPLE_API_ISSUER" && test -n "$$APPLE_API_KEY" && test -n "$$APPLE_API_KEY_PATH" || { echo "ERROR: notarization env missing — set APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_PATH (App Store Connect API key) — see clients/desktop/README.md."; exit 1; }
+	@test -f "$$APPLE_API_KEY_PATH" || { echo "ERROR: APPLE_API_KEY_PATH ($$APPLE_API_KEY_PATH) is not a file."; exit 1; }
+
+.PHONY: desktop-release
+desktop-release: web desktop-check desktop-sign-check ## Build a SIGNED + NOTARIZED + STAPLED macOS .app/.dmg (host; needs Apple creds — see clients/desktop/README.md)
+	cd $(DESKTOP_DIR) && cargo tauri build
+	@echo "Notarizing + stapling the .dmg (Tauri notarizes the .app but not the disk image)..."
+	@dmg=$$(ls -t $(DESKTOP_DIR)/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1); \
+		test -n "$$dmg" || { echo "ERROR: no .dmg found under $(DESKTOP_DIR)/target/release/bundle/dmg/"; exit 1; }; \
+		echo "  dmg: $$dmg"; \
+		xcrun notarytool submit "$$dmg" --key "$$APPLE_API_KEY_PATH" --key-id "$$APPLE_API_KEY" --issuer "$$APPLE_API_ISSUER" --wait && \
+		xcrun stapler staple "$$dmg" && \
+		xcrun stapler validate "$$dmg"
+	@echo "Signed + notarized + stapled bundle: $(DESKTOP_DIR)/target/release/bundle/"
+	@echo "Verify: codesign --verify --deep --strict --verbose=2 <app> ; spctl -a -vvv -t exec <app> ; xcrun stapler validate <dmg>"
+
 .PHONY: check
 check: dev-image ## cargo check
 	$(DEV_RUN) cargo check --all-targets

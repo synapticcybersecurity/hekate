@@ -117,7 +117,7 @@ In flight / next:
   - ✅ Foundation (tier A, Apple-Silicon macOS) — Tauri 2 shell at `clients/desktop/` wrapping the existing SolidJS SPA + `hekate-core` WASM core unchanged. Standalone Cargo workspace (kept out of the root workspace so Docker server/CLI builds never pull Tauri's native deps), `frontendDist → clients/web/dist`, CSP locked to bundled scripts/styles with `connect-src` open to the configured server, empty IPC surface (no custom commands). `make desktop` / `make desktop-build`. Built + binary verified on aarch64-apple-darwin (#8).
   - ✅ Configurable API base — the SPA's requests now route through `apiUrl()` (`clients/web/src/lib/config.ts`), defaulting to same-origin (`""`) so the web vault is byte-for-byte unchanged; the desktop build sets it via a first-run server-selection screen (validates against `/api/v1/version` before persisting). `isDesktop()` gates the screen so it never shows in the browser.
   - ⬜ Tier-A polish — Touch ID/Hello unlock, system tray, native menu bar, auto-update (Tauri built-in updater chosen; plugin + signed-manifest endpoint pending a release channel)
-  - ⬜ Code signing + notarization (Apple Developer account in hand; wiring is the next desktop slice)
+  - 🚧 Code signing + notarization — plumbing landed (`make desktop-release` + `desktop-sign-check` preflight; env-driven Developer ID signing + App Store Connect API-key notarization, secrets out of repo; setup guide in `clients/desktop/README.md`). Needs the operator's Developer ID cert + API key to produce an actual signed/notarized build (#8).
   - ⬜ Windows / Linux bundles (MSI/MSIX + winget; AppImage/Flatpak/deb/rpm)
   - ⬜ Tier C — in-app SSH agent; Tier B — native credential provider (macOS first)
 - ⬜ Native iOS (Swift / SwiftUI)
