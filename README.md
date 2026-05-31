@@ -1,6 +1,6 @@
 # Hekate
 
-A high-performance, open-source password manager. Greenfield Rust-native alternative to Bitwarden, with full enterprise feature parity at a fraction of the operational footprint.
+A high-performance, open-source, Rust-native password manager. Greenfield, with a full enterprise feature set at a fraction of the operational footprint.
 
 > **Brand vs. code names.** The product is **Hekate** (Greek goddess of keys and crossroads). Code-level identifiers — Cargo packages (`hekate-core`, `hekate-server`, `hekate-cli`), binaries (`hekate-server`, `hekate`), env vars (`HEKATE_*`), container/volume names — all use `hekate`. The protocol-frozen identifiers — AAD strings (`pmgr-cipher-key-v2:…`, `pmgr-vault-manifest-v3\x00`, every other `b"pmgr-…"` literal), signature DSTs, token wire formats (`pmgr_sat_*`, `pmgr_pat_*`), and the `PMGRA1` magic for chunked-AEAD bodies — keep the original `pmgr-…` / `pmgr_*` prefix because they're baked into ciphertexts, signed manifests, and stored hashes. Renaming them would invalidate every user's vault.
 
