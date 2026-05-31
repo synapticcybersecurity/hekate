@@ -301,4 +301,24 @@ mod tests {
             Err(Error::Crypto)
         ));
     }
+
+    #[test]
+    fn wrong_expected_aad_rejected_substitution_defense() {
+        // E6 (issue #18): a value wrapped for one context (cipher X) must not
+        // decrypt when the caller expects another (cipher Y). This is the
+        // server-substitution defense; security-bearing callers must always
+        // pass `Some(expected_aad)`, never `None`.
+        let e =
+            EncString::encrypt_xc20p("kid", &key(), b"secret", b"pmgr-cipher-key-v2:X").unwrap();
+        assert!(matches!(
+            e.decrypt_xc20p(&key(), Some(b"pmgr-cipher-key-v2:Y")),
+            Err(Error::Crypto)
+        ));
+        // The correct expected AAD still decrypts.
+        assert_eq!(
+            e.decrypt_xc20p(&key(), Some(b"pmgr-cipher-key-v2:X"))
+                .unwrap(),
+            b"secret"
+        );
+    }
 }
