@@ -58,11 +58,60 @@ make desktop-build    # build the web SPA, then bundle a .app/.dmg
 SPA into `clients/web/dist`), then launches the Tauri dev shell pointed at
 that dist.
 
-## Not yet wired (follow-ups)
+## Code signing & notarization (Developer ID + direct `.dmg`)
 
-- **Code signing + notarization** with the Apple Developer account — the
-  account exists; the signing/notarization step in `make desktop-build` is
-  a follow-up.
+`make desktop-release` produces a **signed + notarized** `.app`/`.dmg` for
+direct download (Gatekeeper-clean; no App Store). Signing and notarization
+are driven by environment variables Tauri reads at build time — **no
+secrets live in the repo**. One-time setup on the signing Mac (needs your
+Apple Developer account):
+
+**1. Developer ID Application certificate** (signs the app)
+- Keychain Access → *Certificate Assistant → Request a Certificate From a
+  Certificate Authority* → "Saved to disk" → save the CSR.
+- Apple Developer portal → Certificates → **+** → **Developer ID
+  Application** → upload the CSR → download the `.cer` → double-click to
+  install into the **login** keychain.
+- Confirm + copy its exact name:
+  ```sh
+  security find-identity -v -p codesigning
+  # → "Developer ID Application: Your Name (TEAMID)"
+  ```
+
+**2. App Store Connect API key** (authenticates notarization)
+- App Store Connect → **Users and Access → Integrations → App Store Connect
+  API** → generate a key (role **Developer** suffices for notarytool).
+- Download `AuthKey_XXXXXXXXXX.p8` **once** (Apple won't let you re-download
+  it); store it **outside the repo**, e.g. `~/.config/hekate/` (`chmod 600`).
+  Note the **Issuer ID** (above the keys table) and the **Key ID** (the row).
+
+**3. Export the env vars** (shell profile; never committed):
+  ```sh
+  export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+  export APPLE_API_ISSUER="<issuer-uuid>"
+  export APPLE_API_KEY="<key-id>"
+  export APPLE_API_KEY_PATH="$HOME/.config/hekate/AuthKey_XXXXXXXXXX.p8"
+  ```
+
+**4. Build:**
+  ```sh
+  make desktop-release   # builds the SPA, then signs + notarizes + staples
+  ```
+  `make desktop-sign-check` runs first and fails fast if the cert or any of
+  the env vars is missing.
+
+**5. Verify** (output under `src-tauri/target/release/bundle/`):
+  ```sh
+  codesign --verify --deep --strict --verbose=2 <Hekate.app>
+  spctl -a -vvv -t exec <Hekate.app>          # "accepted, source=Notarized Developer ID"
+  xcrun stapler validate <Hekate_x.y.z.dmg>   # "The validate action worked!"
+  ```
+
+**Never commit** the `.p8` key, the CSR/`.cer`, or your keychain — only the
+env-var *names* and this guide live in the repo. Public distribution is
+still subject to the project's pre-publish security posture (`docs/`).
+
+## Not yet wired (follow-ups)
 - **Auto-update** — strategy chosen (Tauri's built-in updater); plugin +
   signed-manifest endpoint to be wired once a release channel exists.
 - **In-app "change server"** — first-run selection is implemented; a
