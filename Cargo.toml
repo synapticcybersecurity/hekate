@@ -13,7 +13,7 @@ rust-version = "1.89"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/synapticcybersecurity/hekate"
 homepage = "https://github.com/synapticcybersecurity/hekate"
-# Pre-alpha: nothing in the workspace is published to crates.io yet.
+# Alpha: nothing in the workspace is published to crates.io yet.
 # Flip on a per-crate basis when a crate is ready for distribution.
 publish = false
 

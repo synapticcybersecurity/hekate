@@ -10,7 +10,7 @@
 //!   * SSH_AGENTC_REQUEST_IDENTITIES (11) → SSH_AGENT_IDENTITIES_ANSWER (12)
 //!   * SSH_AGENTC_SIGN_REQUEST (13)         → SSH_AGENT_SIGN_RESPONSE (14)
 //!
-//! Pre-alpha scope:
+//! Alpha scope:
 //!   * Ed25519 only — RSA / ECDSA tracked as follow-ups.
 //!   * NO per-use approval. Any caller with socket access can sign;
 //!     same trust model as the existing `hekate unlock` daemon (kernel

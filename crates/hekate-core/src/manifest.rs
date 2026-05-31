@@ -82,7 +82,7 @@ pub type AccountSigningSeed = Zeroizing<[u8; 32]>;
 
 /// Domain separation prefix for the canonical bytes that Ed25519 signs.
 /// Bumped to `-v3` (M2.24) for the `attachments_root` field on every
-/// entry. Pre-alpha, no migration path; old manifests are wiped
+/// entry. Alpha, no migration path; old manifests are wiped
 /// server-side (`0020_manifest_v3.sql`). Predecessors:
 /// - v1: bare `(cipher_id, revision_date, deleted)` (M2.15b / M3.5)
 /// - v2: + `parent_canonical_sha256` chain field (M2.15c)
