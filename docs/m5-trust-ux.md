@@ -23,6 +23,98 @@ in `threat-model-gaps.md` enumerates the protected literals.
 > independent of the vendor — self-host customers running
 > Hekate are not using a Synapticcyber service.
 
+## Post-review design amendments (2026-05-31)
+
+The internal adversarial review ([`m5-security-review.md`](m5-security-review.md),
+issue #16) surfaced composition-level findings. These amendments resolve
+**F1–F4** and are **authoritative** where they differ from the original
+design text below; the original text is retained for context but must be
+read together with these amendments.
+
+### A1 — Canonical encoding + domain separation (resolves F1)
+
+Every signed M5 object uses **one injective canonical serialization** and a
+**unique, length-framed domain-separation tag (DST)**:
+
+- **Canonical encoding.** All signed structures (`PubkeyBundle`, the
+  `RosterEntry` list, `CoOwnerSet`, `OrgPolicy`) serialize via strict
+  length-prefixed TLV — each field `len(u32 BE) || bytes`, fixed field
+  order, no field encoded by presence/absence (use an explicit `u8` tag).
+  No naive `||` concatenation of variable-length fields (labels, arrays),
+  so two distinct structures can never produce identical bytes.
+- **Domain separation.** Each signature input is prefixed with a unique,
+  length-framed DST (`len(u8) || dst`) so a signature over one object type
+  can never verify as another. Frozen DSTs (add to the protocol-frozen
+  table in [`threat-model-gaps.md`](threat-model-gaps.md)):
+  `pmgr-m5-bundle-self-v2`, `pmgr-m5-bundle-prior-v2`, `pmgr-m5-roster-v2`,
+  `pmgr-m5-coownerset-v2`, `pmgr-m5-policy-v2`, `pmgr-m5-rotation-accept-v2`.
+
+### A2 — Quorum representation + fault tolerance (resolves F4 + F2)
+
+**Schema (F4).** Replace the single `signature` column on
+`org_co_owner_sets` (and the policy block) with an explicit signature set:
+
+```sql
+CREATE TABLE org_co_owner_set_sigs (
+    org_id        UUID NOT NULL,
+    version       INTEGER NOT NULL,
+    signer_pubkey BYTEA NOT NULL,   -- Ed25519; MUST be an owner in version-1 (the set being amended)
+    signature     BYTEA NOT NULL,   -- over DST || parent_hash || canonical
+    PRIMARY KEY (org_id, version, signer_pubkey)
+);
+-- org_policy_sigs is parallel.
+```
+
+Verification rules (all required):
+- signers MUST be **distinct** (the PK enforces it);
+- every signer MUST be an owner in the **previous** co-owner-set version,
+  never the new one — an added owner cannot help authorize their own
+  addition;
+- the count of valid distinct signers MUST meet the threshold
+  (`quorum_routine` = 1, `quorum_owner_change` = 2).
+
+**Fault tolerance (F2).** 2-of-N tolerates one compromised owner only for
+N ≥ 3. We **keep the ≥2 invariant** (no forced 3-owner UX); the N=2
+deadlock (honest party can't reach quorum to evict a compromised
+co-owner) is resolved by the **time-delayed safe-removal path (Flow D,
+A3)**, not by raising the invariant. The threat-model claim "defends
+against single owner-key compromise" is **corrected**: at N=2 the defense
+is Flow D (delayed + alerted), not an immediate 2-of-N exclusion.
+
+### A3 — Flow D: time-delayed safe owner removal (resolves F2 at N=2)
+
+Any **single** current owner (human or recovery) may remove another
+co-owner when quorum is structurally unreachable (e.g. N=2, one party
+compromised):
+
+1. Initiator signs a `coowner.remove-request` (DST-bound) naming the
+   target owner pubkey and `not-before = now + delay` (default **72h**;
+   org-configurable 24h–7d; strong-mode minimum 72h).
+2. The request is logged and **alerted to ALL owners immediately**
+   (in-app mandatory; email/SMS where configured) — **regardless of
+   mode** (overrides the default-mode "log only" rule for this event).
+3. During the window any owner — including the target — may **cancel**;
+   the cancellation itself alerts every owner, so a compromised target
+   cancelling surfaces the compromise to the legitimate human.
+4. If the window elapses without cancellation, removal applies: a new
+   co-owner-set version omitting the target, signed by the initiator,
+   plus the M4.5b org-sym-key rotation.
+
+Immediate quorum removal stays available and unchanged for N ≥ 3; Flow D
+is the fallback when cryptographic quorum cannot be reached.
+
+### A4 — Recovery rejoin requires OOB identity confirmation (resolves F3)
+
+Flow C step 4 is amended: before any owner signs the co-owner-set update
+admitting a recovery-initiated new `userId`, that owner MUST complete an
+**out-of-band human-identity confirmation** of the new fingerprint — in
+**both default and strong modes** (not strong-only). A valid recovery-key
+signature is **necessary but not sufficient**: it proves possession of the
+recovery key, not that the new account is the rightful human. The
+accepting owner attests (logged) that they confirmed the rejoining person
+OOB. A stolen recovery key therefore cannot silently mint an owner — it is
+stopped at the human-confirmation step, and the attempt is alerted.
+
 ## Why this milestone exists
 
 During the M4.5b smoke (member-removal + key-rotation), org owners
@@ -106,7 +198,7 @@ CREATE TABLE org_co_owner_sets (
     org_id        UUID NOT NULL,
     version       INTEGER NOT NULL,
     canonical     BYTEA NOT NULL,    -- canonical-encoded bytes
-    signature     BYTEA NOT NULL,    -- Ed25519 sig under previous-version's signer
+    signature     BYTEA NOT NULL,    -- SUPERSEDED by A2: use org_co_owner_set_sigs (a signature SET), not one column
     parent_hash   BYTEA NOT NULL,    -- BLAKE3 of previous version's canonical bytes
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (org_id, version)
@@ -255,6 +347,10 @@ memory).
 4. Other org owners (or other co-owners with current authority)
    sync, see the new co-owner-set version, verify the recovery
    key's signature against the previously-pinned set, accept.
+   *(Amended per A4: a valid recovery-key signature is necessary but
+   NOT sufficient — the accepting owner MUST also complete an
+   out-of-band human-identity confirmation of the new fingerprint, in
+   both default and strong modes, before accepting.)*
 5. User is back in the org as themselves with a new userId.
    Personal vault is still gone; org membership is restored.
 
@@ -768,6 +864,9 @@ per-event-type per-org regardless of mode.
    co-owner-set excluding the compromised key (2-of-N quorum).
    Members refresh and refuse the compromised owner's signatures
    going forward. **No org-wide signing-seed rotation needed.**
+   *(Corrected per A2/A3: 2-of-N has no fault tolerance at N=2 — the
+   default solo topology — so this case is defended by the time-delayed
+   safe-removal path Flow D, not by immediate quorum exclusion.)*
 6. **Stale-roster cross-org confusion.** UI surfaces fingerprint
    disagreement between rosters explicitly when present.
 
