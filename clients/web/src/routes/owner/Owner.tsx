@@ -14,6 +14,7 @@ import { createSignal, Match, Show, Switch } from "solid-js";
 
 import type { LoginResult } from "../../lib/auth";
 import type { CipherView } from "../../lib/cipher";
+import { alertDialog } from "../../lib/dialog";
 import {
   clearSession,
   expireSession,
@@ -380,7 +381,7 @@ export function Owner() {
                 // state. Just route back to the login screen.
                 setView({ kind: "list" });
                 setPhase({ kind: "login" });
-                window.alert(
+                void alertDialog(
                   "Account deleted. All ciphers, shares, and tokens have been removed from the server.",
                 );
               }}
@@ -396,7 +397,7 @@ export function Owner() {
                 setTab("settings");
                 setView({ kind: "list" });
                 setReloadKey(reloadKey() + 1);
-                window.alert(
+                void alertDialog(
                   "Master password changed. Other sessions are now invalid; re-authenticate on each device.",
                 );
               }}
@@ -412,7 +413,7 @@ export function Owner() {
                 setTab("settings");
                 setView({ kind: "list" });
                 setReloadKey(reloadKey() + 1);
-                window.alert(
+                void alertDialog(
                   `Rotated. Re-wrote ${result.rewroteCiphers} cipher(s), ${result.rewroteSends} share(s), ${result.rewroteOrgMemberships} org membership(s).` +
                     (result.skippedSendIds.length
                       ? ` Skipped ${result.skippedSendIds.length} orphaned share(s) — delete them and retry.`

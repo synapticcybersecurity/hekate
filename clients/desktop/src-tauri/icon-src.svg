@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hekate desktop (macOS) app-icon master.
+
+  This is the desktop-specific source for `cargo tauri icon` — distinct
+  from clients/web/public/icons/icon.svg, which stays FULL-BLEED on purpose
+  (favicons + the browser-extension toolbar icon want edge-to-edge art).
+
+  macOS app icons must follow Apple's icon grid: the rounded "squircle"
+  body fills ~80% of the canvas with transparent padding around it, so the
+  icon sits at the same visual size as every other app in the Dock. A
+  full-bleed icon (no margin) renders wrong — macOS drops it onto a white
+  tile (issue #26). Here the 824×824 body is centred in a 1024 canvas
+  (100 px margin all round) with a 22.5% corner radius; the key glyph is
+  the same artwork as the web icon, scaled into the body.
+
+  Regenerate the icons/ set with:
+    cd clients/desktop/src-tauri && cargo tauri icon icon-src.svg
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#007AFF"/>
+      <stop offset="100%" stop-color="#5856D6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 824×824 body centred in the 1024 canvas (100 px transparent margin),
+       drawn in the original 0..128 coordinate space via the group transform
+       so the glyph matches the web icon exactly. -->
+  <g transform="translate(100,100) scale(6.4375)">
+    <!-- Rounded-square card. 22.5% corner radius (185 px at 824). -->
+    <rect x="0" y="0" width="128" height="128" rx="28.74" ry="28.74" fill="url(#bg)"/>
+
+    <!-- Key bow (the round head). -->
+    <g fill="none" stroke="white" stroke-width="9" stroke-linecap="round">
+      <circle cx="64" cy="46" r="22"/>
+    </g>
+    <circle cx="64" cy="46" r="4.5" fill="white"/>
+
+    <!-- Key shaft + teeth, pointing down. -->
+    <g stroke="white" stroke-width="9" stroke-linecap="round" fill="none">
+      <line x1="64" y1="68" x2="64" y2="100"/>
+      <line x1="64" y1="84" x2="76" y2="84"/>
+      <line x1="64" y1="94" x2="72" y2="94"/>
+    </g>
+  </g>
+</svg>

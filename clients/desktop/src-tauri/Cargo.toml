@@ -19,7 +19,9 @@ homepage = "https://github.com/synapticcybersecurity/hekate"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `tray-icon` enables the menu-bar tray (TrayIconBuilder). The native app
+# menu (tauri::menu) is part of core and needs no extra feature.
+tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

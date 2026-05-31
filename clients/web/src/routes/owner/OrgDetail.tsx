@@ -8,6 +8,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 
 import { ApiError } from "../../lib/api";
+import { confirmDialog } from "../../lib/dialog";
 import {
   decodeRoster,
   fetchOrgFull,
@@ -137,14 +138,15 @@ export function OrgDetail(props: OrgDetailProps) {
     const ids = orphanUserIds();
     if (ids.length === 0) return;
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Prune ${ids.length} orphan ${ids.length === 1 ? "entry" : "entries"} ` +
           `from the signed roster?\n\n` +
           "These user_ids are in the cryptographic roster but have no " +
           "membership row server-side — they were never able to access this " +
           "org's data. Pruning re-signs the roster without them. The org " +
           "symmetric key is NOT rotated (orphans never received it).",
-      )
+        { okLabel: "Prune" },
+      ))
     ) {
       return;
     }
@@ -219,11 +221,12 @@ export function OrgDetail(props: OrgDetailProps) {
 
   async function onCancelInvite(userId: string, label: string) {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Cancel the invitation to ${label}?\n\n` +
           "They'll lose the pending invite. The org's signed roster is unaffected " +
           "since the invite never advanced it. You can re-invite later.",
-      )
+        { okLabel: "Cancel invite", danger: true },
+      ))
     ) {
       return;
     }
@@ -251,7 +254,7 @@ export function OrgDetail(props: OrgDetailProps) {
 
   async function onRemoveMember(userId: string, label: string) {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Remove ${label} from "${props.org.name}"?\n\n` +
           "This rotates the org symmetric key, re-wraps every org-owned " +
           "cipher under the new key, and signcrypts the new key to every " +
@@ -259,7 +262,8 @@ export function OrgDetail(props: OrgDetailProps) {
           "removed member loses access immediately.\n\n" +
           "All remaining members must already be peer-pinned with " +
           "fingerprints verified out of band.",
-      )
+        { okLabel: "Remove member", danger: true },
+      ))
     ) {
       return;
     }

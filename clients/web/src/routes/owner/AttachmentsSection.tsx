@@ -13,6 +13,7 @@ import {
 } from "solid-js";
 
 import { ApiError } from "../../lib/api";
+import { confirmDialog } from "../../lib/dialog";
 import {
   decryptAttachmentRows,
   deleteAttachment,
@@ -103,7 +104,13 @@ export function AttachmentsSection(props: AttachmentsSectionProps) {
   }
 
   async function onDelete(row: DecryptedAttachment) {
-    if (!window.confirm(`Permanently delete "${row.filename}"?`)) return;
+    if (
+      !(await confirmDialog(`Permanently delete "${row.filename}"?`, {
+        okLabel: "Delete",
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {

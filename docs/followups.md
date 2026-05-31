@@ -36,20 +36,32 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
   Apple-Silicon macOS) shipped: `clients/desktop/` Tauri 2 shell wrapping
   the SPA, configurable API base (`apiUrl()` + first-run server screen),
   `make desktop` / `make desktop-build`, binary verified on
-  aarch64-apple-darwin. **Next slices, in order:**
-    1. **Run-on-device smoke** — `make desktop` against the dev server;
-       confirm first-run server screen → login → vault/sync/sends work in
-       the native window (WASM loads from `/wasm` under Tauri's root).
-    2. **Code signing + notarization** — wire the Apple Developer account
-       (now in hand) into `make desktop-build`: Developer ID cert,
-       `codesign`, `notarytool` submit + staple. Bundle id
-       `com.synapticcyber.hekate`.
-    3. **Auto-update** — Tauri built-in updater plugin + signed update
+  aarch64-apple-darwin. Shipped since: run-on-device smoke; code signing +
+  notarization (`make desktop-release`, bundle id
+  `com.synapticcyber.hekate`); **system tray + native menu + hide-to-tray**
+  (#8); desktop bug fixes (#26 — Copy-URL share base, in-app dialogs
+  replacing the no-op `window.confirm/alert/prompt`, macOS-padded app
+  icon). **Next slices, in order:**
+    1. **Touch ID unlock** (tier A) — **design written, DECISION PENDING**:
+       see [`desktop-touch-id.md`](desktop-touch-id.md). Stores the 32-byte
+       master key in a biometric-gated Keychain item + adds the first
+       custom IPC command (both flagged in `secure-coding.md` §8 as
+       review-required). Awaiting sign-off on (a) persisting the key at all
+       and (b) access-control strictness. Biometrics only test in a *signed*
+       build (`make desktop-release`).
+    2. **Auto-update** — Tauri built-in updater plugin + signed update
        manifest endpoint (needs a release channel first).
-    4. **Tier-A polish** — Touch ID unlock, system tray, native menu;
-       in-app "change server" affordance in Settings.
-    5. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
+    3. **In-app "change server"** — first-run selection exists; add a
+       Settings affordance to switch servers later.
+    4. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
        B** (macOS credential provider) as later milestones.
+  - **Resolved (Dock icon white tile):** the prior icns was a blue squircle
+    composited onto an *opaque white* background (corners `255,255,255,255`),
+    so the Dock showed a white tile. The new `icon-src.svg` regeneration
+    produces transparent corners (`0,0,0,0`); confirmed against a bundled
+    `make desktop-build` `.app` (after `killall Dock`). Note `cargo tauri
+    dev` embeds the icon at *compile* time, so a dev run without a Rust
+    recompile keeps showing the stale icon — judge icons from a bundle.
 
 - **next (after desktop): M5 v1 — Trust UX implementation.** Design +
   audit-facing threat model in [`m5-trust-ux.md`](m5-trust-ux.md);

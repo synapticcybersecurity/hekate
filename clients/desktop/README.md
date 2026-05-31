@@ -5,10 +5,10 @@ built with [Tauri 2](https://tauri.app). It renders the same SPA — and
 the same `hekate-core` WASM crypto core — in a native window, talking to
 whichever Hekate server the user configures on first run.
 
-This is **tier A** of the desktop track (issue #8): a thin wrapper. Touch
-ID / Hello unlock, system tray, native menu, auto-update, an in-app SSH
-agent (tier C), and the native credential provider (tier B) are follow-up
-milestones.
+This is **tier A** of the desktop track (issue #8): a thin wrapper. It
+ships a native menu bar and a menu-bar tray icon (hide-to-tray on window
+close); Touch ID / Hello unlock, auto-update, an in-app SSH agent (tier C),
+and the native credential provider (tier B) are follow-up milestones.
 
 ## Why Tauri
 
@@ -29,9 +29,13 @@ clients/desktop/
                         #   pull in Tauri's native deps
     tauri.conf.json     # frontendDist → ../../web/dist; CSP; bundle config
     build.rs
-    src/main.rs         # thin Builder::default().run(...)
+    src/main.rs         # Builder + native menu + tray + hide-to-tray
     capabilities/       # core window permissions only
-    icons/              # generated from clients/web/public/icons/icon-128.png
+    icon-src.svg        # macOS app-icon master (824px body in a 1024
+                        #   canvas; transparent padding per Apple's grid).
+                        #   Regenerate icons/ with `cargo tauri icon icon-src.svg`.
+                        #   Distinct from the full-bleed web/extension icon.
+    icons/              # generated from icon-src.svg
 ```
 
 ## Prerequisites (host toolchain)
@@ -111,10 +115,19 @@ Apple Developer account):
 env-var *names* and this guide live in the repo. Public distribution is
 still subject to the project's pre-publish security posture (`docs/`).
 
+## Shipped (tier A)
+- **System tray + native menu** — a menu-bar tray icon (Show / Hide / Quit;
+  left-click re-shows the window) and a native menu bar (Hekate / Edit /
+  View / Window) so the standard clipboard + undo accelerators reach the
+  webview. Closing the window hides it to the tray instead of quitting;
+  tray Quit / Cmd-Q exit. All driven from `src/main.rs` — the webview IPC
+  surface stays empty.
+
 ## Not yet wired (follow-ups)
+- **Touch ID unlock** — macOS `LocalAuthentication` wired into the vault
+  lock flow (tier A); needs a signed build to test biometrics.
 - **Auto-update** — strategy chosen (Tauri's built-in updater); plugin +
   signed-manifest endpoint to be wired once a release channel exists.
 - **In-app "change server"** — first-run selection is implemented; a
   Settings affordance to switch servers later is a follow-up.
-- Touch ID unlock, system tray, native menu (tier A polish); SSH agent
-  (tier C); native credential provider (tier B).
+- SSH agent (tier C); native credential provider (tier B).

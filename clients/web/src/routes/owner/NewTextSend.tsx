@@ -8,6 +8,7 @@ import { createSignal, Show } from "solid-js";
 
 import { ApiError } from "../../lib/api";
 import { b64encode } from "../../lib/base64";
+import { shareBaseUrl } from "../../lib/config";
 import { createSend } from "../../lib/sendApi";
 import { getSession } from "../../lib/session";
 import { loadHekateCore } from "../../wasm";
@@ -80,7 +81,7 @@ export function NewTextSend(props: NewTextSendProps) {
         ...(Number.isFinite(max) && max > 0 ? { max_access_count: max } : {}),
       });
 
-      const url = `${window.location.origin}/send/#/${sendId}/${hekate.sendEncodeKey(sendKey)}`;
+      const url = `${shareBaseUrl()}/send/#/${sendId}/${hekate.sendEncodeKey(sendKey)}`;
       // Suppress unused import warning when no password is set.
       void b64encode;
       props.onCreated(url);

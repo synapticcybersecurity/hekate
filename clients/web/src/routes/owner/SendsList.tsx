@@ -20,6 +20,8 @@ import {
   type SendListItem,
 } from "../../lib/sendApi";
 import { copy } from "../../lib/clipboard";
+import { shareBaseUrl } from "../../lib/config";
+import { confirmDialog } from "../../lib/dialog";
 import { getSession } from "../../lib/session";
 import { loadHekateCore } from "../../wasm";
 
@@ -108,7 +110,7 @@ export function SendsList(props: SendsListProps) {
         session.accountKey,
         hekate.sendKeyWrapAad(sd.id),
       );
-      const origin = window.location.origin;
+      const origin = shareBaseUrl();
       const url = `${origin}/send/#/${sd.id}/${hekate.sendEncodeKey(sendKey)}`;
       await copy(url);
       showToast("URL copied (auto-clears in 30s)");
@@ -143,9 +145,10 @@ export function SendsList(props: SendsListProps) {
 
   async function onDelete(sd: DecodedSend) {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         `Permanently delete share "${sd.displayName}"? Recipients will get 410 Gone.`,
-      )
+        { okLabel: "Delete", danger: true },
+      ))
     ) {
       return;
     }
