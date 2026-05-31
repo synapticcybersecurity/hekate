@@ -42,12 +42,13 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
   (#8); desktop bug fixes (#26 — Copy-URL share base, in-app dialogs
   replacing the no-op `window.confirm/alert/prompt`, macOS-padded app
   icon). **Next slices, in order:**
-    1. **Touch ID unlock** (tier A) — macOS `LocalAuthentication` wired
-       into the vault lock flow. Security-sensitive; biometrics only test
-       in a *signed* build (`make desktop-release`). Likely a small Rust
-       command exposed over IPC (this is the first custom IPC command — keep
-       it minimal + capability-gated) that the SPA's lock screen calls to
-       gate unlock of the locally-cached session.
+    1. **Touch ID unlock** (tier A) — **design written, DECISION PENDING**:
+       see [`desktop-touch-id.md`](desktop-touch-id.md). Stores the 32-byte
+       master key in a biometric-gated Keychain item + adds the first
+       custom IPC command (both flagged in `secure-coding.md` §8 as
+       review-required). Awaiting sign-off on (a) persisting the key at all
+       and (b) access-control strictness. Biometrics only test in a *signed*
+       build (`make desktop-release`).
     2. **Auto-update** — Tauri built-in updater plugin + signed update
        manifest endpoint (needs a release channel first).
     3. **In-app "change server"** — first-run selection exists; add a
