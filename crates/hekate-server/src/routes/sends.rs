@@ -30,6 +30,7 @@ use hekate_core::{
     attachment::{ciphertext_size_for, content_hash_b3, HEADER_LEN},
     encstring::EncString,
 };
+use futures_util::StreamExt;
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -1103,7 +1104,12 @@ async fn public_blob_download(
                 )),
             }
         }
-    });
+    })
+    // `.fuse()` is load-bearing: hyper polls the response body once more
+    // after it yields None, and a bare `unfold` panics on that extra poll
+    // ("Unfold must not be polled after it returned Poll::Ready(None)"),
+    // aborting the connection mid-download. Fuse returns None idempotently.
+    .fuse();
     let mut h = HeaderMap::new();
     h.insert(
         header::CONTENT_TYPE,
