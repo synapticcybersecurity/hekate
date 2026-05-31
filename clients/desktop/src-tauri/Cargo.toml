@@ -1,0 +1,29 @@
+[package]
+name = "hekate-desktop"
+version = "0.0.1"
+description = "Hekate desktop vault — Tauri wrapper around the SolidJS web vault"
+edition = "2021"
+rust-version = "1.89"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/synapticcybersecurity/hekate"
+homepage = "https://github.com/synapticcybersecurity/hekate"
+
+# Standalone workspace on purpose: the root Cargo workspace (built inside
+# Docker for the server + CLI) must never pull Tauri and its native
+# system dependencies (WebKit, etc.) into that build. Keeping an empty
+# [workspace] table here stops cargo from walking up and absorbing this
+# crate into the root workspace.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Enabled by `tauri build`; embeds assets via the custom protocol rather
+# than expecting a dev server.
+custom-protocol = ["tauri/custom-protocol"]

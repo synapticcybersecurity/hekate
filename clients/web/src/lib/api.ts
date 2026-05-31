@@ -9,6 +9,7 @@
  * replaying an old one revokes the family), and retries. A second 401
  * means the user must re-authenticate.
  */
+import { apiUrl } from "./config";
 import { getSession, persistRefreshToken, replaceTokens } from "./session";
 
 export class ApiError extends Error {
@@ -38,7 +39,7 @@ async function readErrorMessage(r: Response): Promise<{ message: string; body: u
 }
 
 export async function postJSON<T>(url: string, body: unknown): Promise<T> {
-  const r = await fetch(url, {
+  const r = await fetch(apiUrl(url), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -88,7 +89,7 @@ export async function authedFetch(
   }
 
   const exec = (token: string) =>
-    fetch(path, {
+    fetch(apiUrl(path), {
       method,
       headers: { ...headers, authorization: `Bearer ${token}` },
       body,
@@ -132,7 +133,7 @@ interface RefreshResult {
 
 async function tryRefreshToken(refreshToken: string): Promise<RefreshResult | null> {
   try {
-    const r = await fetch("/identity/connect/token", {
+    const r = await fetch(apiUrl("/identity/connect/token"), {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({

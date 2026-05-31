@@ -25,6 +25,7 @@
  * fresh MAC the next prelogin returns.
  */
 import { ApiError, postJSON } from "./api";
+import { apiUrl } from "./config";
 import { b64encode, b64urlEncode } from "./base64";
 import { setSession } from "./session";
 import { loadHekateCore } from "../wasm";
@@ -171,7 +172,7 @@ export async function register(
   // 8. Token grant + finalize. A freshly-registered account can't have
   //    2FA enrolled yet, so we never expect the two_factor_required
   //    branch — surface it as an error if the server somehow returns it.
-  const tokR = await fetch("/identity/connect/token", {
+  const tokR = await fetch(apiUrl("/identity/connect/token"), {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({

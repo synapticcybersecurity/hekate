@@ -32,8 +32,28 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
 
 ## Queued work (with kickoff plans)
 
-- **next: M5 v1 — Trust UX implementation.** Design + audit-facing
-  threat model in [`m5-trust-ux.md`](m5-trust-ux.md); citation pass
+- **active: Desktop app (Tauri) — issue #8.** Foundation (tier A,
+  Apple-Silicon macOS) shipped: `clients/desktop/` Tauri 2 shell wrapping
+  the SPA, configurable API base (`apiUrl()` + first-run server screen),
+  `make desktop` / `make desktop-build`, binary verified on
+  aarch64-apple-darwin. **Next slices, in order:**
+    1. **Run-on-device smoke** — `make desktop` against the dev server;
+       confirm first-run server screen → login → vault/sync/sends work in
+       the native window (WASM loads from `/wasm` under Tauri's root).
+    2. **Code signing + notarization** — wire the Apple Developer account
+       (now in hand) into `make desktop-build`: Developer ID cert,
+       `codesign`, `notarytool` submit + staple. Bundle id
+       `com.synapticcyber.hekate`.
+    3. **Auto-update** — Tauri built-in updater plugin + signed update
+       manifest endpoint (needs a release channel first).
+    4. **Tier-A polish** — Touch ID unlock, system tray, native menu;
+       in-app "change server" affordance in Settings.
+    5. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
+       B** (macOS credential provider) as later milestones.
+
+- **next (after desktop): M5 v1 — Trust UX implementation.** Design +
+  audit-facing threat model in [`m5-trust-ux.md`](m5-trust-ux.md);
+  citation pass
   complete; session kickoff prompt at the bottom of the spec doc.
   Substantial code: per-owner-keypair co-owner sets, fingerprint
   bindings on rosters, rotation envelope flow, recovery-owner
@@ -247,10 +267,11 @@ real product.
 
 ### Desktop standalone apps
 
-- [ ] **macOS app** — likely Tauri or similar wrapping the web
-      vault SPA + local IPC to a daemon. Includes Mac App Store
-      publication (sandboxed) and direct download (.dmg, less
-      sandboxed).
+- [ ] **macOS app** — Tauri wrapper around the web vault SPA.
+      Foundation (tier A) shipped under #8 (`clients/desktop/`,
+      `make desktop-build` → .app/.dmg, Apple-Silicon). Still open:
+      code signing + notarization, Mac App Store publication
+      (sandboxed) vs direct .dmg download, auto-update.
 - [ ] **Windows app** — Tauri / Electron / native; includes
       Microsoft Store publication and direct download (.msi /
       .exe installer).
@@ -291,9 +312,11 @@ real product.
 
 These don't surface to end users but block all of the above:
 
-- [ ] **Apple Developer account** ($99/year) — required for
-      macOS notarization, iOS App Store, Mac App Store, Safari
-      Extension. Includes ongoing key custody discipline.
+- [x] **Apple Developer account** ($99/year) — acquired 2026-05-30.
+      Required for macOS notarization, iOS App Store, Mac App Store,
+      Safari Extension. Not yet wired into any build; first use is the
+      desktop signing/notarization slice (#8). Ongoing key-custody
+      discipline still applies.
 - [ ] **Windows EV code-signing certificate** (~$300–400/year) —
       required for SmartScreen reputation; without it, every
       Windows install gets a "Windows protected your PC" warning.
