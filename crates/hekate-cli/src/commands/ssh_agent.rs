@@ -632,8 +632,10 @@ fn load_ed25519_identities(
             Err(_) => continue,
         };
         let aad = aad_cipher_data(&c.id, c.cipher_type);
+        // M1 (issue #22): zeroize decrypted key material — this runs in a
+        // long-lived daemon and re-runs on every hot-reload.
         let pt = match decrypt_field_string(&cipher_key, &c.data, &aad) {
-            Ok(s) => s,
+            Ok(s) => zeroize::Zeroizing::new(s),
             Err(_) => continue,
         };
         #[derive(serde::Deserialize)]
@@ -642,7 +644,7 @@ fn load_ed25519_identities(
             private_key: Option<String>,
         }
         let data: Data = serde_json::from_str(&pt).unwrap_or(Data { private_key: None });
-        let Some(priv_text) = data.private_key else {
+        let Some(priv_text) = data.private_key.map(zeroize::Zeroizing::new) else {
             continue;
         };
         let pk = match PrivateKey::from_openssh(&priv_text) {
@@ -652,7 +654,7 @@ fn load_ed25519_identities(
         let KeypairData::Ed25519(kp) = pk.key_data() else {
             continue; // skip RSA/ECDSA for MVP
         };
-        let seed: [u8; 32] = kp.private.to_bytes();
+        let seed = zeroize::Zeroizing::new(kp.private.to_bytes());
         let signing_key = SigningKey::from_bytes(&seed);
         let pub_bytes: [u8; 32] = signing_key.verifying_key().to_bytes();
 
