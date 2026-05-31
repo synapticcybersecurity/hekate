@@ -532,6 +532,22 @@ async fn totp_disable(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
+    // M-A1 (issue #22): honor the documented "revoking all other sessions".
+    // Rotating security_stamp only invalidates outstanding access JWTs;
+    // refresh tokens are not stamp-checked, so a leaked refresh token would
+    // otherwise survive a 2FA-disable. Revoke them here, matching the
+    // sibling stamp-rotating handlers (totp_confirm / change-password /
+    // rotate-keys).
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = $1
+         WHERE user_id = $2 AND revoked_at IS NULL",
+    )
+    .bind(&now)
+    .bind(&user.user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
     tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

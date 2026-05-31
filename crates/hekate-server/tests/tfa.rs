@@ -378,6 +378,8 @@ async fn disable_drops_2fa_and_codes() {
     .await;
     assert_eq!(s_login, StatusCode::OK, "body: {body_login}");
     let bearer = body_login["access_token"].as_str().unwrap().to_string();
+    // M-A1 (issue #22): capture the refresh token issued before the disable.
+    let refresh = body_login["refresh_token"].as_str().unwrap().to_string();
 
     let body = json!({"master_password_hash": b64(&MPH)});
     let r = app
@@ -392,6 +394,25 @@ async fn disable_drops_2fa_and_codes() {
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::NO_CONTENT);
+
+    // M-A1 (issue #22): disabling 2FA must revoke other sessions, so the
+    // refresh token issued before the disable can no longer be exchanged.
+    let form = format!("grant_type=refresh_token&refresh_token={refresh}");
+    let rr = app
+        .clone()
+        .oneshot(
+            Request::post("/identity/connect/token")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(Body::from(form))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        rr.status(),
+        StatusCode::UNAUTHORIZED,
+        "disabling 2FA must revoke pre-existing refresh tokens"
+    );
 
     // Login should now skip the 2FA leg entirely.
     let v = login_password(&app, "frank@example.com").await;

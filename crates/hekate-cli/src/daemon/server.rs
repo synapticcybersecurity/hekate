@@ -16,7 +16,7 @@ use chrono::{DateTime, Utc};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::daemon::{Request, Response, StatusInfo};
 
@@ -99,12 +99,24 @@ async fn handle(
     stream.read_exact(&mut req_buf).await?;
     let req: Request = serde_json::from_slice(&req_buf)?;
 
-    let resp = process(req, &state).await;
-    let body = serde_json::to_vec(&resp)?;
+    let mut resp = process(req, &state).await;
+    let mut body = serde_json::to_vec(&resp)?;
     let len_out = u32::try_from(body.len())?;
     stream.write_all(&len_out.to_be_bytes()).await?;
     stream.write_all(&body).await?;
     stream.shutdown().await.ok();
+    // L1 (issue #22): wipe the transient plaintext-key carriers — both the
+    // serialized JSON body and the base64 fields in the response hold the
+    // account key + signing seed.
+    body.zeroize();
+    if let Response::Unlocked {
+        account_key_b64,
+        signing_seed_b64,
+    } = &mut resp
+    {
+        account_key_b64.zeroize();
+        signing_seed_b64.zeroize();
+    }
 
     // If we just acked a Shutdown, exit after the response is on the wire.
     if let Response::Ok = resp {
