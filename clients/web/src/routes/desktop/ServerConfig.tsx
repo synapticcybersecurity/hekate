@@ -19,6 +19,11 @@ interface VersionResponse {
   version?: string;
 }
 
+/** Upper bound on the first-run version probe so an unreachable host can't
+ *  hang the screen indefinitely (global standard: timeout every outbound
+ *  call). */
+const PROBE_TIMEOUT_MS = 10_000;
+
 /** Trim and strip a trailing slash; prepend https:// if no scheme given. */
 function normalizeInput(raw: string): string {
   let v = raw.trim().replace(/\/+$/, "");
@@ -40,11 +45,16 @@ export function ServerConfig(props: { onSaved: () => void }) {
       return;
     }
     setChecking(true);
+    // Bound the probe: an unreachable or black-holed host must not hang the
+    // first-run screen forever. Abort after 10s and report it distinctly.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
     try {
       // Probe the unauthenticated version endpoint to confirm the URL
       // really points at a Hekate server before we commit it.
       const r = await fetch(`${base}/api/v1/version`, {
         headers: { accept: "application/json" },
+        signal: controller.signal,
       });
       if (!r.ok) {
         setError(`Server responded ${r.status} ${r.statusText}. Check the URL.`);
@@ -57,9 +67,16 @@ export function ServerConfig(props: { onSaved: () => void }) {
       }
       setApiBase(base);
       props.onSaved();
-    } catch {
-      setError("Couldn't reach that server. Check the URL and your connection.");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError(
+          `Server didn't respond within ${PROBE_TIMEOUT_MS / 1000}s. Check the URL and your connection.`,
+        );
+      } else {
+        setError("Couldn't reach that server. Check the URL and your connection.");
+      }
     } finally {
+      clearTimeout(timeout);
       setChecking(false);
     }
   }
