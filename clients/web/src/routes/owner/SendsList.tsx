@@ -20,6 +20,7 @@ import {
   type SendListItem,
 } from "../../lib/sendApi";
 import { copy } from "../../lib/clipboard";
+import { shareBaseUrl } from "../../lib/config";
 import { getSession } from "../../lib/session";
 import { loadHekateCore } from "../../wasm";
 
@@ -108,7 +109,7 @@ export function SendsList(props: SendsListProps) {
         session.accountKey,
         hekate.sendKeyWrapAad(sd.id),
       );
-      const origin = window.location.origin;
+      const origin = shareBaseUrl();
       const url = `${origin}/send/#/${sd.id}/${hekate.sendEncodeKey(sendKey)}`;
       await copy(url);
       showToast("URL copied (auto-clears in 30s)");

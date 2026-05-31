@@ -72,3 +72,18 @@ export function apiUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   return apiBase + path;
 }
+
+/** Origin to build user-facing share links (Send URLs) against.
+ *  - Web build: base is "" → the page is served by the server itself, so
+ *    `window.location.origin` is the right, browsable origin.
+ *  - Desktop: the page is served from the app bundle (`tauri://localhost`),
+ *    so `window.location.origin` would produce an unusable `tauri://` link.
+ *    Use the configured server base instead, which is where the recipient
+ *    mode (`/send/*`) is actually mounted.
+ *  Falls back to `getApiBase()` when `window` is absent (SSR/sandboxed). */
+export function shareBaseUrl(): string {
+  const base = getApiBase();
+  if (base) return base;
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
+}

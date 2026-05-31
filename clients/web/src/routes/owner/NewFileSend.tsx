@@ -17,6 +17,7 @@ import { createSignal, Show } from "solid-js";
 
 import { ApiError } from "../../lib/api";
 import { b64encode } from "../../lib/base64";
+import { shareBaseUrl } from "../../lib/config";
 import { createSend, deleteSend, uploadSendBody } from "../../lib/sendApi";
 import { getSession } from "../../lib/session";
 import { loadHekateCore } from "../../wasm";
@@ -123,7 +124,7 @@ export function NewFileSend(props: NewFileSendProps) {
         throw uploadErr;
       }
 
-      const url = `${window.location.origin}/send/#/${sendId}/${hekate.sendEncodeKey(sendKey)}`;
+      const url = `${shareBaseUrl()}/send/#/${sendId}/${hekate.sendEncodeKey(sendKey)}`;
       props.onCreated(url);
     } catch (err) {
       setError(
