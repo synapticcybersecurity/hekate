@@ -26,13 +26,10 @@ and `webAuthenticationProxy` and declares `data_collection_permissions`
 (Firefox 142+).
 
 ### Shared prerequisites (do once)
-- **Privacy disclosure (#31) — BLOCKER.** The current policy
-  (https://synapticcyber.com/policies/privacy) is a *generic corporate*
-  policy; it doesn't describe the extension's data handling. Stores (CWS,
-  AMO) require the policy to match actual behavior. Add a Hekate
-  extension-specific disclosure: zero-knowledge (the vault is E2E-encrypted
-  to the user's own server; the vendor can't read it), no telemetry, and
-  what each permission is for. Use that URL in every listing.
+- **Privacy policy — ✅ published** (#31): the Hekate-specific policy
+  (zero-knowledge, self-host vs Managed Service, no telemetry, per-permission
+  rationale) is live at **https://synapticcyber.com/policies/hekate-privacy**.
+  Use this exact URL in every store listing. Source: `docs/privacy-policy.md`.
 - **Listing assets:** store icon (have a 128px; stores also want 440×280 /
   1280×800 promo + screenshots), short + detailed description, category
   (Productivity / Tools), support + homepage URL.
