@@ -174,6 +174,7 @@ fn main() {
         // biometric gate + key custody live in the native helper.
         .invoke_handler(tauri::generate_handler![
             biometric::biometric_available,
+            biometric::biometric_enrolled,
             biometric::biometric_enable,
             biometric::biometric_unlock,
             biometric::biometric_disable,

@@ -18,6 +18,7 @@ mod imp {
     // linked by build.rs.
     extern "C" {
         fn hekate_bio_available() -> bool;
+        fn hekate_bio_enrolled(account: *const c_char) -> bool;
         fn hekate_bio_enable(account: *const c_char, master_key_b64: *const c_char) -> bool;
         fn hekate_bio_unlock(account: *const c_char) -> *mut c_char;
         fn hekate_bio_disable(account: *const c_char) -> bool;
@@ -29,6 +30,17 @@ mod imp {
     pub fn biometric_available() -> bool {
         // SAFETY: no arguments; the Swift fn only queries LAContext state.
         unsafe { hekate_bio_available() }
+    }
+
+    /// Whether Touch ID is enrolled for `account` on this device. Does not
+    /// prompt (checks the non-biometric blob item).
+    #[tauri::command]
+    pub fn biometric_enrolled(account: String) -> bool {
+        let Ok(acc) = CString::new(account) else {
+            return false;
+        };
+        // SAFETY: `acc` is a valid C string; the Swift fn only reads.
+        unsafe { hekate_bio_enrolled(acc.as_ptr()) }
     }
 
     /// Enroll Touch ID for `account`, storing the (biometric-gated) wrap of
@@ -90,6 +102,10 @@ mod imp {
 mod imp {
     #[tauri::command]
     pub fn biometric_available() -> bool {
+        false
+    }
+    #[tauri::command]
+    pub fn biometric_enrolled(_account: String) -> bool {
         false
     }
     #[tauri::command]

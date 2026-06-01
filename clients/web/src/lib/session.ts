@@ -34,6 +34,11 @@ const LS_REFRESH_LEGACY = "hekate.refresh_token";
 
 export interface Session {
   email: string;
+  /** 32 raw bytes — the Argon2 master key. In-memory only, never persisted
+   *  to storage. Kept so the desktop build can enroll Touch ID (which stores
+   *  it in the OS Keychain behind biometrics); absent in the browser build's
+   *  flows that don't need it. */
+  masterKey?: Uint8Array;
   /** 32 raw bytes — the unwrapped symmetric vault key. Never persisted. */
   accountKey: Uint8Array;
   /** 32 raw bytes — Ed25519 signing seed for BW04 manifests. Never persisted. */

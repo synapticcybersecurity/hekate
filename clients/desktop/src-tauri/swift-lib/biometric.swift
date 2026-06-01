@@ -136,6 +136,20 @@ public func hekate_bio_unlock(_ accountC: UnsafePointer<CChar>) -> UnsafeMutable
     return strdup(masterKeyData.base64EncodedString())
 }
 
+/// Whether Touch ID is enrolled for this account. Checks the non-biometric
+/// blob item, so it never triggers a Touch ID prompt.
+@_cdecl("hekate_bio_enrolled")
+public func hekate_bio_enrolled(_ accountC: UnsafePointer<CChar>) -> Bool {
+    let account = String(cString: accountC)
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: serviceBlob,
+        kSecAttrAccount as String: account,
+        kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+}
+
 /// Remove both Keychain items for this account.
 @_cdecl("hekate_bio_disable")
 public func hekate_bio_disable(_ accountC: UnsafePointer<CChar>) -> Bool {
