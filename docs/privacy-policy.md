@@ -1,20 +1,5 @@
 # Hekate — Privacy Policy
 
-> ⚠️ **DRAFT — requires legal review before publishing.** This is a
-> technically-accurate description of Hekate's data handling (grounded in
-> the architecture in [`trust-boundaries.md`](trust-boundaries.md) and
-> [`key-hierarchy.md`](key-hierarchy.md)), written so it matches what the
-> code actually does — which is what app-store review checks. It is **not**
-> legal advice. A lawyer should review it for GDPR / UK GDPR / CCPA-CPRA
-> obligations and jurisdiction-specific required clauses before it is
-> published. When published, host it at a stable URL (e.g.
-> `https://synapticcyber.com/policies/hekate-privacy`) and use that URL in
-> every store listing. Confirm the contact address and dates below.
->
-> Before publishing: confirm the "Last updated" date and have legal review.
-
----
-
 **Last updated:** 2026-05-31
 
 This Privacy Policy explains how the **Hekate** password and secrets
@@ -156,9 +141,9 @@ CCPA/CPRA), you may have rights to access, correct, delete, or export your
 personal data, and to object to or restrict certain processing. Because
 your vault content is end-to-end encrypted, much of it is already directly
 accessible and exportable from within the app. To exercise rights regarding
-account data we hold for the Managed Service, contact us at **[privacy
-contact email]**. We do not discriminate against you for exercising these
-rights.
+account data we hold for the Managed Service, contact us at
+privacy@synapticcyber.com. We do not discriminate against you for exercising
+these rights.
 
 ## Children
 
