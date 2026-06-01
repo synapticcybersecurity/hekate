@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Touch ID unlock (docs/desktop-touch-id.md) stores its keys in the macOS
+    *data protection* keychain (the only one that honors biometric
+    SecAccessControl). On a Developer-ID app that keychain has no valid access
+    group unless we declare one, so SecItemAdd fails with
+    errSecMissingEntitlement (-34018). Declare the team-prefixed access group
+    (Team ID PKKD5DLS7L + bundle id com.synapticcyber.hekate). Keychain
+    queries default to this group, so no kSecAttrAccessGroup is needed.
+
+    Not sandboxed: this is a direct-download Developer ID app, not Mac App
+    Store. NSFaceIDUsageDescription is set in the Info.plist for the unlock
+    prompt copy.
+  -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>PKKD5DLS7L.com.synapticcyber.hekate</string>
+  </array>
+</dict>
+</plist>

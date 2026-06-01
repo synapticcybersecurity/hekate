@@ -11,7 +11,13 @@
  */
 import { createSignal, onMount, Show } from "solid-js";
 
-import { login, type LoginResult } from "../../lib/auth";
+import { login, loginWithMasterKey, type LoginResult } from "../../lib/auth";
+import { b64decode } from "../../lib/base64";
+import {
+  biometricAvailable,
+  biometricEnrolled,
+  biometricUnlock,
+} from "../../lib/biometric";
 import { loadHints } from "../../lib/session";
 import { loadHekateCore } from "../../wasm";
 
@@ -30,11 +36,37 @@ export function Resume(props: ResumeProps) {
   const [password, setPassword] = createSignal("");
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  // Touch ID (desktop): show the button only if enrolled for this account.
+  const [bioOn, setBioOn] = createSignal(false);
+  const [bioBusy, setBioBusy] = createSignal(false);
 
-  // Warm WASM so the first keystroke after submit doesn't pay the load cost.
+  // Warm WASM so the first keystroke after submit doesn't pay the load cost,
+  // and probe for a Touch ID enrollment on this device.
   onMount(() => {
     void loadHekateCore().catch(() => undefined);
+    void (async () => {
+      if (email && (await biometricAvailable()) && (await biometricEnrolled(email))) {
+        setBioOn(true);
+      }
+    })();
   });
+
+  async function onTouchId() {
+    setBioBusy(true);
+    setError(null);
+    try {
+      const masterKeyB64 = await biometricUnlock(email);
+      const result = await loginWithMasterKey(email, b64decode(masterKeyB64), true);
+      if (result.kind === "ok") {
+        props.onAuthenticated();
+        return;
+      }
+      props.onTwoFactor(result, true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBioBusy(false);
+    }
+  }
 
   async function onSubmit(e: Event) {
     e.preventDefault();
@@ -64,6 +96,18 @@ export function Resume(props: ResumeProps) {
         password to unlock — your vault key never persists across page
         reloads, even with Remember me on.
       </p>
+
+      <Show when={bioOn()}>
+        <button
+          class="btn"
+          type="button"
+          disabled={bioBusy() || submitting()}
+          style="width: 100%; margin-bottom: 1rem;"
+          onClick={() => void onTouchId()}
+        >
+          {bioBusy() ? "Waiting for Touch ID…" : "🔓 Unlock with Touch ID"}
+        </button>
+      </Show>
 
       <form class="card" onSubmit={onSubmit}>
         <input type="email" autocomplete="username" value={email} hidden />
