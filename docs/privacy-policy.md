@@ -11,7 +11,7 @@
 > `https://synapticcyber.com/policies/hekate-privacy`) and use that URL in
 > every store listing. Confirm the contact address and dates below.
 >
-> Placeholders to fill in: **[privacy contact email]**, **[effective date]**.
+> Before publishing: confirm the "Last updated" date and have legal review.
 
 ---
 
@@ -179,4 +179,4 @@ material changes, provide a more prominent notice.
 
 ## Contact
 
-Synaptic Cybersecurity Alliance, Inc. — **[privacy contact email]**.
+Synaptic Cybersecurity Alliance, Inc. — privacy@synapticcyber.com.
