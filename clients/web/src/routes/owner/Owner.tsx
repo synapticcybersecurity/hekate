@@ -21,7 +21,7 @@ import {
   biometricEnrolled,
 } from "../../lib/biometric";
 import type { CipherView } from "../../lib/cipher";
-import { isDesktop } from "../../lib/config";
+import { getApiBase, isDesktop } from "../../lib/config";
 import { alertDialog } from "../../lib/dialog";
 import {
   clearSession,
@@ -105,7 +105,7 @@ function initialPhase(): Phase {
   return { kind: "login" };
 }
 
-export function Owner() {
+export function Owner(props: { onChangeServer?: () => void } = {}) {
   const [phase, setPhase] = createSignal<Phase>(initialPhase());
   const [tab, setTab] = createSignal<TabId>("vault");
   const [view, setView] = createSignal<SubView>({ kind: "list" });
@@ -471,6 +471,7 @@ export function Owner() {
               onDeleteAccount={() => setView({ kind: "delete-account" })}
               onSessionExpired={onSessionExpired}
               onLogout={onLogout}
+              onChangeServer={props.onChangeServer}
             />
           </Match>
         </Switch>
@@ -501,6 +502,9 @@ interface UnlockedShellProps {
   onDeleteAccount: () => void;
   onSessionExpired: () => void;
   onLogout: () => void;
+  /** Desktop only: re-open the server-selection screen. Undefined in the
+   *  browser build (same-origin, no server to choose). */
+  onChangeServer?: () => void;
 }
 
 function UnlockedShell(props: UnlockedShellProps) {
@@ -567,6 +571,7 @@ function UnlockedShell(props: UnlockedShellProps) {
             onImport={props.onImport}
             onPeerPins={props.onPeerPins}
             onDeleteAccount={props.onDeleteAccount}
+            onChangeServer={props.onChangeServer}
           />
         </Match>
       </Switch>
@@ -585,6 +590,7 @@ function SettingsTab(props: {
   onImport: () => void;
   onPeerPins: () => void;
   onDeleteAccount: () => void;
+  onChangeServer?: () => void;
 }) {
   const session = getSession();
   const [strict, setStrict] = createSignal(isStrictManifest());
@@ -634,7 +640,7 @@ function SettingsTab(props: {
               Signed in as <strong>{s().email}</strong>
             </p>
             <p class="muted" style="margin: 0; font-size: 0.85rem;">
-              Server: <code>{window.location.origin}</code>
+              Server: <code>{getApiBase() || window.location.origin}</code>
             </p>
             <p class="muted" style="margin: 0.4rem 0 0; font-size: 0.85rem;">
               account_key + signing seed are loaded in memory. Refresh
@@ -644,6 +650,15 @@ function SettingsTab(props: {
                 : "sessionStorage"}
               .
             </p>
+            <Show when={props.onChangeServer}>
+              <button
+                class="btn btn-secondary"
+                style="margin-top: 0.6rem;"
+                onClick={() => props.onChangeServer?.()}
+              >
+                Change server…
+              </button>
+            </Show>
           </div>
         )}
       </Show>

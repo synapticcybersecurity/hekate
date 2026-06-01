@@ -31,8 +31,15 @@ function normalizeInput(raw: string): string {
   return v;
 }
 
-export function ServerConfig(props: { onSaved: () => void }) {
-  const [url, setUrl] = createSignal("");
+export function ServerConfig(props: {
+  onSaved: () => void;
+  /** Pre-fill (used by the Settings "Change server" flow). */
+  initialUrl?: string;
+  /** When set, render a Cancel button (change-server can back out;
+   *  first-run cannot — a server must be picked). */
+  onCancel?: () => void;
+}) {
+  const [url, setUrl] = createSignal(props.initialUrl ?? "");
   const [error, setError] = createSignal<string | null>(null);
   const [checking, setChecking] = createSignal(false);
 
@@ -83,11 +90,11 @@ export function ServerConfig(props: { onSaved: () => void }) {
 
   return (
     <main class="page">
-      <h1>Hekate</h1>
+      <h1>{props.onCancel ? "Change server" : "Hekate"}</h1>
       <p class="muted" style="margin: 0 0 1.25rem;">
-        Connect to your Hekate server. Enter the address of a self-hosted
-        server or the managed service. You can change this later in
-        Settings.
+        {props.onCancel
+          ? "Point the app at a different Hekate server. Switching servers signs you out of the current one."
+          : "Connect to your Hekate server. Enter the address of a self-hosted server or the managed service. You can change this later in Settings."}
       </p>
 
       <form class="card" onSubmit={onSubmit}>
@@ -109,9 +116,21 @@ export function ServerConfig(props: { onSaved: () => void }) {
         <Show when={error()}>
           <div class="banner banner-error">{error()}</div>
         </Show>
-        <button class="btn" type="submit" disabled={checking()}>
-          {checking() ? "Connecting…" : "Connect"}
-        </button>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button class="btn" type="submit" disabled={checking()}>
+            {checking() ? "Connecting…" : "Connect"}
+          </button>
+          <Show when={props.onCancel}>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              disabled={checking()}
+              onClick={() => props.onCancel?.()}
+            >
+              Cancel
+            </button>
+          </Show>
+        </div>
       </form>
 
       <p class="muted" style="font-size: 0.85rem; margin-top: 1rem;">
