@@ -8,9 +8,15 @@
 // key. The macOS login password is never an unlock path (no device-passcode
 // fallback in the access-control flags).
 //
+// All queries set `kSecUseDataProtectionKeychain: true`: on macOS,
+// `kSecAttrAccessControl` (biometric ACLs) is only honored by the data
+// protection keychain, not the default file keychain. Items added with that
+// flag must also be read/deleted with it, so it's set on every call.
+//
 // Exposed to Rust as a C ABI (`@_cdecl`); strings cross as NUL-terminated
 // C strings. `hekate_bio_unlock` returns a malloc'd string the caller must
-// release with `hekate_bio_free`.
+// release with `hekate_bio_free`. `hekate_bio_enable` returns an OSStatus
+// (0 = success) so the Rust side can surface the real failure code.
 
 import CryptoKit
 import Foundation
@@ -20,11 +26,18 @@ import Security
 private let serviceUnlockKey = "com.synapticcyber.hekate.touchid.unlockkey"
 private let serviceBlob = "com.synapticcyber.hekate.touchid.blob"
 
+// Non-Keychain failure sentinels for hekate_bio_enable (Keychain itself
+// returns standard OSStatus values, which are distinct from these).
+private let errBadBase64: Int32 = -2001
+private let errSealFailed: Int32 = -2002
+private let errAccessControl: Int32 = -2003
+
 private func deleteItem(service: String, account: String) {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: service,
         kSecAttrAccount as String: account,
+        kSecUseDataProtectionKeychain as String: true,
     ]
     SecItemDelete(query as CFDictionary)
 }
@@ -38,26 +51,27 @@ public func hekate_bio_available() -> Bool {
 }
 
 /// Store a biometric-gated unlock key wrapping `masterKeyB64`. Replaces any
-/// existing entry for this account. Returns true on success.
+/// existing entry for this account. Returns an OSStatus: 0 (errSecSuccess) on
+/// success, a standard Keychain error, or one of the err* sentinels above.
 @_cdecl("hekate_bio_enable")
 public func hekate_bio_enable(
     _ accountC: UnsafePointer<CChar>,
     _ masterKeyB64C: UnsafePointer<CChar>
-) -> Bool {
+) -> Int32 {
     let account = String(cString: accountC)
     let masterKeyB64 = String(cString: masterKeyB64C)
-    guard let masterKeyData = Data(base64Encoded: masterKeyB64) else { return false }
+    guard let masterKeyData = Data(base64Encoded: masterKeyB64) else { return errBadBase64 }
 
     // 1. Random 32-byte unlock key.
     var unlockKeyBytes = [UInt8](repeating: 0, count: 32)
-    guard SecRandomCopyBytes(kSecRandomDefault, unlockKeyBytes.count, &unlockKeyBytes)
-        == errSecSuccess else { return false }
+    let randStatus = SecRandomCopyBytes(kSecRandomDefault, unlockKeyBytes.count, &unlockKeyBytes)
+    guard randStatus == errSecSuccess else { return randStatus }
     let unlockKeyData = Data(unlockKeyBytes)
     let symKey = SymmetricKey(data: unlockKeyData)
 
     // 2. AES-256-GCM wrap the master key under the unlock key.
     guard let sealed = try? AES.GCM.seal(masterKeyData, using: symKey),
-        let combined = sealed.combined else { return false }
+        let combined = sealed.combined else { return errSealFailed }
 
     // 3. Replace any prior entries.
     deleteItem(service: serviceUnlockKey, account: account)
@@ -71,7 +85,7 @@ public func hekate_bio_enable(
         kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
         .biometryCurrentSet,
         &acError
-    ) else { return false }
+    ) else { return errAccessControl }
 
     let unlockQuery: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
@@ -79,8 +93,10 @@ public func hekate_bio_enable(
         kSecAttrAccount as String: account,
         kSecValueData as String: unlockKeyData,
         kSecAttrAccessControl as String: access,
+        kSecUseDataProtectionKeychain as String: true,
     ]
-    guard SecItemAdd(unlockQuery as CFDictionary, nil) == errSecSuccess else { return false }
+    let unlockStatus = SecItemAdd(unlockQuery as CFDictionary, nil)
+    guard unlockStatus == errSecSuccess else { return unlockStatus }
 
     // 5. Store the wrapped blob (no biometric gate; this device only).
     let blobQuery: [String: Any] = [
@@ -89,13 +105,15 @@ public func hekate_bio_enable(
         kSecAttrAccount as String: account,
         kSecValueData as String: combined,
         kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        kSecUseDataProtectionKeychain as String: true,
     ]
-    guard SecItemAdd(blobQuery as CFDictionary, nil) == errSecSuccess else {
+    let blobStatus = SecItemAdd(blobQuery as CFDictionary, nil)
+    guard blobStatus == errSecSuccess else {
         // Roll back the unlock-key item so we never leave a half-written pair.
         deleteItem(service: serviceUnlockKey, account: account)
-        return false
+        return blobStatus
     }
-    return true
+    return errSecSuccess
 }
 
 /// Trigger Touch ID, decrypt the blob, and return the master key as a
@@ -111,6 +129,7 @@ public func hekate_bio_unlock(_ accountC: UnsafePointer<CChar>) -> UnsafeMutable
         kSecAttrService as String: serviceUnlockKey,
         kSecAttrAccount as String: account,
         kSecReturnData as String: true,
+        kSecUseDataProtectionKeychain as String: true,
         kSecUseOperationPrompt as String: "Unlock your Hekate vault",
     ]
     var unlockRef: CFTypeRef?
@@ -123,6 +142,7 @@ public func hekate_bio_unlock(_ accountC: UnsafePointer<CChar>) -> UnsafeMutable
         kSecAttrService as String: serviceBlob,
         kSecAttrAccount as String: account,
         kSecReturnData as String: true,
+        kSecUseDataProtectionKeychain as String: true,
     ]
     var blobRef: CFTypeRef?
     guard SecItemCopyMatching(blobQuery as CFDictionary, &blobRef) == errSecSuccess,
@@ -146,6 +166,7 @@ public func hekate_bio_enrolled(_ accountC: UnsafePointer<CChar>) -> Bool {
         kSecAttrService as String: serviceBlob,
         kSecAttrAccount as String: account,
         kSecMatchLimit as String: kSecMatchLimitOne,
+        kSecUseDataProtectionKeychain as String: true,
     ]
     return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
 }
