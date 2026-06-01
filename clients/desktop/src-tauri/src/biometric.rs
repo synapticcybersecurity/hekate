@@ -19,7 +19,9 @@ mod imp {
     extern "C" {
         fn hekate_bio_available() -> bool;
         fn hekate_bio_enrolled(account: *const c_char) -> bool;
-        fn hekate_bio_enable(account: *const c_char, master_key_b64: *const c_char) -> bool;
+        /// Returns an OSStatus: 0 = success, otherwise a Keychain error or a
+        /// helper sentinel (see biometric.swift).
+        fn hekate_bio_enable(account: *const c_char, master_key_b64: *const c_char) -> i32;
         fn hekate_bio_unlock(account: *const c_char) -> *mut c_char;
         fn hekate_bio_disable(account: *const c_char) -> bool;
         fn hekate_bio_free(ptr: *mut c_char);
@@ -51,14 +53,16 @@ mod imp {
         let mk = CString::new(master_key_b64).map_err(|_| "invalid key".to_string())?;
         // SAFETY: both pointers are valid NUL-terminated C strings for the
         // duration of the call; the Swift side copies the bytes it needs.
-        let ok = unsafe { hekate_bio_enable(acc.as_ptr(), mk.as_ptr()) };
+        let status = unsafe { hekate_bio_enable(acc.as_ptr(), mk.as_ptr()) };
         // Best-effort wipe of the key bytes this process held.
         let mut bytes = mk.into_bytes_with_nul();
         bytes.zeroize();
-        if ok {
+        if status == 0 {
             Ok(())
         } else {
-            Err("could not enable Touch ID".to_string())
+            // Surface the real OSStatus so a Keychain/entitlement failure is
+            // diagnosable (e.g. -34018 errSecMissingEntitlement).
+            Err(format!("could not enable Touch ID (status {status})"))
         }
     }
 
