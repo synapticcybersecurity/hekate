@@ -10,11 +10,18 @@
  *                      typePicker (TypePicker)
  *                      edit (EditCipher; create-from-type or edit-existing)
  */
-import { createSignal, Match, Show, Switch } from "solid-js";
+import { createSignal, Match, onMount, Show, Switch } from "solid-js";
 
 import type { LoginResult } from "../../lib/auth";
+import { b64encode } from "../../lib/base64";
+import {
+  biometricAvailable,
+  biometricDisable,
+  biometricEnable,
+  biometricEnrolled,
+} from "../../lib/biometric";
 import type { CipherView } from "../../lib/cipher";
-import { getApiBase } from "../../lib/config";
+import { getApiBase, isDesktop } from "../../lib/config";
 import { alertDialog } from "../../lib/dialog";
 import {
   clearSession,
@@ -123,7 +130,17 @@ export function Owner(props: { onChangeServer?: () => void } = {}) {
     });
   }
 
+  // Drop any Touch ID enrollment for the current account. Used on full
+  // logout, master-password change, and account delete — NOT on Lock (a lock
+  // should keep Touch ID so Resume can offer it). `email` survives in the
+  // persisted hints even after the session is cleared (e.g. account delete).
+  function clearBiometricForCurrent() {
+    const email = getSession()?.email ?? loadHints().email;
+    if (email) void biometricDisable(email);
+  }
+
   function onLogout() {
+    clearBiometricForCurrent();
     clearSession();
     setView({ kind: "list" });
     setPhase({ kind: "login" });
@@ -380,7 +397,10 @@ export function Owner(props: { onChangeServer?: () => void } = {}) {
               }}
               onDeleted={() => {
                 // deleteAccount() already cleared in-memory + persisted
-                // state. Just route back to the login screen.
+                // state. Drop any Touch ID enrollment too (best-effort —
+                // the item is biometric-gated + useless once the account is
+                // gone, but tidy up if the email hint survives).
+                clearBiometricForCurrent();
                 setView({ kind: "list" });
                 setPhase({ kind: "login" });
                 void alertDialog(
@@ -396,6 +416,9 @@ export function Owner(props: { onChangeServer?: () => void } = {}) {
                 setView({ kind: "list" });
               }}
               onDone={() => {
+                // The master key changed, so any stored Touch ID material is
+                // now stale — drop it; the user can re-enable.
+                clearBiometricForCurrent();
                 setTab("settings");
                 setView({ kind: "list" });
                 setReloadKey(reloadKey() + 1);
@@ -576,6 +599,43 @@ function SettingsTab(props: {
 }) {
   const session = getSession();
   const [strict, setStrict] = createSignal(isStrictManifest());
+
+  // Touch ID (desktop only). `bioAvail` gates the whole card; `bioOn` tracks
+  // enrollment for this account on this device.
+  const [bioAvail, setBioAvail] = createSignal(false);
+  const [bioOn, setBioOn] = createSignal(false);
+  const [bioBusy, setBioBusy] = createSignal(false);
+  const [bioErr, setBioErr] = createSignal<string | null>(null);
+  onMount(async () => {
+    if (!isDesktop()) return;
+    const avail = await biometricAvailable();
+    setBioAvail(avail);
+    if (avail && session) setBioOn(await biometricEnrolled(session.email));
+  });
+  async function toggleBio(on: boolean) {
+    if (!session) return;
+    setBioBusy(true);
+    setBioErr(null);
+    try {
+      if (on) {
+        if (!session.masterKey) {
+          throw new Error(
+            "Re-unlock with your master password first, then enable Touch ID.",
+          );
+        }
+        await biometricEnable(session.email, b64encode(session.masterKey));
+        setBioOn(true);
+      } else {
+        await biometricDisable(session.email);
+        setBioOn(false);
+      }
+    } catch (e) {
+      setBioErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBioBusy(false);
+    }
+  }
+
   return (
     <>
       <Show when={session}>
@@ -626,6 +686,37 @@ function SettingsTab(props: {
           </button>
         </div>
       </div>
+
+      <Show when={bioAvail()}>
+        <div class="card">
+          <p style="margin: 0 0 0.5rem;">
+            <strong>Touch ID</strong>
+          </p>
+          <label style="display: flex; align-items: flex-start; gap: 0.5rem; margin: 0 0 0.5rem;">
+            <input
+              type="checkbox"
+              checked={bioOn()}
+              disabled={bioBusy()}
+              style="margin-top: 0.25rem;"
+              onChange={(e) => void toggleBio(e.currentTarget.checked)}
+            />
+            <span>
+              <span style="font-weight: 500;">Unlock with Touch ID on this Mac</span>
+              <span
+                class="muted"
+                style="display: block; font-size: 0.85rem; margin-top: 0.15rem;"
+              >
+                Stores your vault key in this Mac's Secure Enclave, released
+                only by your fingerprint. The macOS login password can't
+                unlock it; your master password always can. Per device.
+              </span>
+            </span>
+          </label>
+          <Show when={bioErr()}>
+            <div class="banner banner-error">{bioErr()}</div>
+          </Show>
+        </div>
+      </Show>
 
       <div class="card">
         <p style="margin: 0 0 0.5rem;">
