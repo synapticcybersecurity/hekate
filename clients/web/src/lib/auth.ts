@@ -106,7 +106,36 @@ export async function login(
   }
 
   const mphB64 = b64encode(hekate.deriveMasterPasswordHash(masterKey));
+  return grantAndFinalize(hekate, email, masterKey, mphB64, rememberMe);
+}
 
+/** Desktop Touch ID unlock: the master key was released from the OS Keychain
+ *  by a biometric match, so we skip prelogin + Argon2 and go straight to the
+ *  password grant. Returns the same union as `login()` — a 2FA-enabled
+ *  account still routes through `needTwoFactor`. A stale key (master password
+ *  changed elsewhere) just 401s here; the caller falls back to password login
+ *  and re-enrolls. See `docs/desktop-touch-id.md`. */
+export async function loginWithMasterKey(
+  rawEmail: string,
+  masterKey: Uint8Array,
+  rememberMe: boolean,
+): Promise<LoginResult> {
+  const email = rawEmail.trim().toLowerCase();
+  const hekate = await loadHekateCore();
+  const mphB64 = b64encode(hekate.deriveMasterPasswordHash(masterKey));
+  return grantAndFinalize(hekate, email, masterKey, mphB64, rememberMe);
+}
+
+/** Shared tail of `login()` / `loginWithMasterKey()`: run the password grant
+ *  with the derived `mphB64` and either finalize the session or surface the
+ *  2FA challenge. */
+async function grantAndFinalize(
+  hekate: HekateCore,
+  email: string,
+  masterKey: Uint8Array,
+  mphB64: string,
+  rememberMe: boolean,
+): Promise<LoginResult> {
   const first = await postForm("/identity/connect/token", {
     grant_type: "password",
     username: email,
@@ -182,6 +211,9 @@ function finalizeLogin(
   setSession(
     {
       email,
+      // In-memory only (never persisted) — lets the desktop build enroll
+      // Touch ID, which stores it behind the OS biometric gate.
+      masterKey,
       accountKey,
       signingSeed,
       signingPubkeyB64: b64urlEncode(signingPubkey),
