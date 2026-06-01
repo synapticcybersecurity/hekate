@@ -17,6 +17,8 @@
 // Hide the extra console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod biometric;
+
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -167,6 +169,15 @@ fn main() {
                 }
             }
         })
+        // Touch ID unlock IPC (the app's only custom commands). App commands
+        // are allowed by default for the app's windows in Tauri 2; the
+        // biometric gate + key custody live in the native helper.
+        .invoke_handler(tauri::generate_handler![
+            biometric::biometric_available,
+            biometric::biometric_enable,
+            biometric::biometric_unlock,
+            biometric::biometric_disable,
+        ])
         .build(tauri::generate_context!())
         .expect("error while building Hekate desktop")
         .run(|app, event| {
