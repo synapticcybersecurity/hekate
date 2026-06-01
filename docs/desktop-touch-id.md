@@ -121,21 +121,15 @@ and sufficient** to reconstruct a session — it is the unit we protect.
 | Server unreachable / offline | Unlock re-runs the grant, so it needs the server — same as normal login today (no offline vault in the current architecture). Fail with a clear message. |
 | Keychain item left after app uninstall | Harmless — biometric-gated and useless without the app + the (deleted) blob. |
 
-## Open decision — 2FA-enabled accounts
+## 2FA-enabled accounts (decided: support)
 
 For an account with 2FA, biometric unlock replaces the *master-password
-typing*, but the password grant still returns `two_factor_required`. Two
-options:
-
-- **Support it (recommended):** after biometric → master key → grant
-  returns `needTwoFactor`, route to the existing 2FA screen
-  (`TwoFactor.tsx`) carrying the in-memory master key, then `finalizeLogin`.
-  Biometric still saves the password step; 2FA is still enforced.
-- **Defer:** only offer Touch ID for accounts without 2FA in v1 (mirrors the
-  popup rotate-keys limitation), add 2FA support later.
-
-This is the one choice that changes implementation scope; everything else
-above is settled.
+typing*, but the password grant still returns `two_factor_required`.
+**Decision: support it.** After biometric → master key → the grant returns
+`needTwoFactor`, route to the existing 2FA screen (`TwoFactor.tsx`) carrying
+the in-memory master key, then `finalizeLogin`. Biometric still saves the
+password step; 2FA is still enforced. `loginWithMasterKey` therefore
+returns the same `LoginResult` union as `login()` (`ok` | `needTwoFactor`).
 
 ## Threat-model delta
 
