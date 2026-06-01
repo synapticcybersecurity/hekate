@@ -17,6 +17,9 @@ homepage = "https://github.com/synapticcybersecurity/hekate"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# The Swift Touch ID helper (swift-lib/biometric.swift) is compiled directly
+# with `swiftc` in build.rs (no SwiftPM/swift-rs) and linked via a hand-rolled
+# C ABI — see build.rs and docs/desktop-touch-id.md.
 
 [dependencies]
 # `tray-icon` enables the menu-bar tray (TrayIconBuilder). The native app
@@ -24,6 +27,9 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Wipe master-key bytes this process holds after handing them to the Swift
+# Keychain helper (Touch ID unlock).
+zeroize = "1"
 
 [features]
 # Enabled by `tauri build`; embeds assets via the custom protocol rather
