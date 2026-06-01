@@ -118,3 +118,51 @@ Where it lives
   - Right-click the toolbar icon → Inspect popup opens DevTools attached to the popup
   - After editing popup.js, no rebuild needed — just click the reload icon on the extension card at chrome://extensions
   - After editing hekate-core/src/wasm.rs, run make extension to regenerate the WASM, then reload the extension card
+
+---
+
+## Building from source (for AMO / store reviewers)
+
+Mozilla AMO requires reviewers to reproduce the uploaded add-on from
+source. Hekate's extension is **plain static files plus one WebAssembly
+module compiled from Rust** — there is no JS bundler, minifier, or
+transpiler; the JS/HTML/CSS shipped are the source verbatim.
+
+### Toolchain
+- **Docker** — builds the Rust→WASM; no host Rust toolchain needed.
+- **GNU make** — orchestrates the build.
+- **Node.js 18+** — only used by `npx web-ext` to lint + package the
+  Firefox build.
+- Pinned build tools live in the dev Docker image
+  (`docker/dev.dockerfile`): the Rust toolchain (rustc 1.89), the
+  `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` 0.2.120.
+
+### Reproduce the uploaded artifacts (from the repo root)
+```
+# Firefox (what AMO receives) → dist/hekate-<version>.zip
+make extension-firefox-zip
+
+# Chromium (Chrome Web Store / Edge) → dist/hekate-chromium-extension.zip
+make extension-zip
+```
+`make extension-firefox-zip` (1) compiles `hekate-core` to wasm32 in
+Docker and runs `wasm-bindgen`, (2) copies the bindings into
+`clients/extension/wasm/`, (3) stages the tree to `dist/extension-firefox/`
+swapping in `manifest.firefox.json`, runs `web-ext lint`, and (4) emits the
+uploadable zip.
+
+### Source ↔ package mapping
+- `popup/`, `background.js`, `offscreen.*`, `manifest(.firefox).json`,
+  `icons/` — shipped **verbatim** from `clients/extension/`.
+- `wasm/hekate_core_bg.wasm` + `hekate_core.js` — **compiled** from
+  `crates/hekate-core/` (wasm entrypoint `src/wasm.rs`) via the steps above;
+  never hand-edited.
+- **No remote code**: nothing is fetched or `eval`'d at runtime; the CSP
+  forbids it. All executable code (including the WASM) is in the package.
+- The Firefox build drops the `offscreen` and `webAuthenticationProxy`
+  permissions (event-page background instead).
+
+### Verify
+Re-running the command above on the submitted commit regenerates the same
+static source tree and the WASM from the pinned toolchain. Source repo:
+https://github.com/synapticcybersecurity/hekate (AGPL-3.0).
