@@ -148,6 +148,17 @@ extension-firefox-zip: extension-firefox ## Produce AMO-uploadable artifact in d
 	@echo "AMO artifact:"
 	@ls -la dist/*.zip
 
+.PHONY: extension-zip
+extension-zip: extension ## Produce a Chrome Web Store / Edge-uploadable Chromium zip in dist/
+	rm -rf dist/extension-chromium
+	mkdir -p dist/extension-chromium
+	rsync -a clients/extension/ dist/extension-chromium/ \
+	    --exclude README.md --exclude COMPILEandDEBUG.md \
+	    --exclude manifest.firefox.json
+	cd dist/extension-chromium && zip -r -q -X ../hekate-chromium-extension.zip .
+	@echo "Chrome Web Store / Edge artifact:"
+	@ls -la dist/hekate-chromium-extension.zip
+
 # ---- web vault (SolidJS SPA) -------------------------------------------------
 #
 # `make web` produces clients/web/dist/, which `hekate-server` mounts at
