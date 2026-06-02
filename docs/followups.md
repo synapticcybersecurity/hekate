@@ -32,6 +32,27 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
 
 ## Queued work (with kickoff plans)
 
+- **active (near-term): feature gaps blocking extension store screenshots —
+  #42 + #41.** Both surfaced while prepping the browser-extension store
+  submission: the store listing (`docs/store-listings.md`) advertises a
+  password generator and live TOTP codes that weren't actually visible in the
+  client UI. Screenshots — the last operator task for the Chrome/Edge/AMO
+  listings (#32/#33/#34) — are deliberately held until both land so the shots
+  show the real features.
+    1. **#42 — live TOTP on login items.** Web vault side **DONE + committed**
+       (`b460d8f`, branch `feature/42-totp-on-login`): added the `totp` field to
+       the Login type (`clients/web/src/lib/cipher.ts`), a `TotpField` render in
+       `clients/web/src/routes/owner/CipherDetail.tsx`, and a copy-TOTP-code
+       button on login rows in `clients/web/src/routes/owner/Vault.tsx`.
+       **Pick up here:** port the same onto login items in the extension —
+       `clients/extension/popup/popup.js` (login detail render + list-row copy).
+       The popup already renders TOTP for the dedicated type-6 cipher, so mirror
+       that path onto type-1 logins that carry a `totp` field.
+    2. **#41 — password generator UI.** Queued **after #42**. The generator
+       logic exists but is inline-only (web vault button gated behind an unset
+       flag; extension has only a small ⚄ button). Needs a discoverable
+       generator UI in both the web vault and the popup.
+
 - **queued: #43 — extension save/update-password capture.** Autofill today is
   popup-initiated and fill-only (`fillActiveTab`/`pageFill` in
   `clients/extension/popup/popup.js`); there is **no content script**, so the
