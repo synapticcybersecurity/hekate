@@ -12,6 +12,7 @@ pub mod encstring;
 // getrandom 0.3) that don't yet have a working WASM build; they
 // stay gated to non-wasm and ship via the CLI for now.
 pub mod error;
+pub mod generate;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod import_1password;
 pub mod import_bitwarden;

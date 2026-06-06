@@ -1,19 +1,16 @@
 //! `hekate generate` — cryptographically random password or passphrase.
+//!
+//! The generation logic (CSPRNG, options, the embedded EFF wordlist) lives in
+//! `hekate_core::generate` — the single source of truth shared with the web
+//! vault and browser extension (which reach it through wasm). This command is a
+//! thin wrapper: argument parsing + the M4.6 `password_generator_rules` policy
+//! enforcement that only applies to the CLI.
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
-
-const LOWER: &str = "abcdefghijklmnopqrstuvwxyz";
-const UPPER: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const NUMBERS: &str = "0123456789";
-const SYMBOLS: &str = "!@#$%^&*()-_=+[]{};:,.<>?/";
-
-/// EFF long wordlist (CC BY 3.0, https://www.eff.org/dice). 7776 words,
-/// matched to 5-die rolls so each word carries log2(7776) ≈ 12.925 bits
-/// of entropy. Embedded at build time so `hekate generate --passphrase`
-/// works fully offline. Source: <https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt>.
-const EFF_LONG_WORDLIST: &str = include_str!("../data/eff_long.txt");
+use hekate_core::generate::{
+    passphrase as core_passphrase, password as core_password, PassphraseOptions, PasswordOptions,
+};
 
 #[derive(Debug, Parser)]
 pub struct Args {
@@ -36,6 +33,9 @@ pub struct Args {
     pub no_numbers: bool,
     #[arg(long)]
     pub no_symbols: bool,
+    /// Exclude visually ambiguous characters (`O 0 I l 1`) from the pool.
+    #[arg(long)]
+    pub avoid_ambiguous: bool,
 
     // ---- passphrase options -----------------------------------------
     /// Number of words (passphrase mode only). 5 words ≈ 64.6 bits of
@@ -56,12 +56,23 @@ pub struct Args {
     pub no_newline: bool,
 }
 
-pub fn run(args: Args) -> Result<()> {
-    enforce_generator_policy(&args)?;
+pub fn run(mut args: Args) -> Result<()> {
+    enforce_generator_policy(&mut args)?;
     let pw = if args.passphrase {
-        passphrase(args.words, &args.separator, args.capitalize)?
+        core_passphrase(&PassphraseOptions {
+            words: args.words,
+            separator: args.separator.clone(),
+            capitalize: args.capitalize,
+        })?
     } else {
-        char_password(&args)?
+        core_password(&PasswordOptions {
+            length: args.length,
+            lowercase: !args.no_lowercase,
+            uppercase: !args.no_uppercase,
+            numbers: !args.no_numbers,
+            symbols: !args.no_symbols,
+            avoid_ambiguous: args.avoid_ambiguous,
+        })?
     };
     if args.no_newline {
         print!("{pw}");
@@ -77,7 +88,7 @@ pub fn run(args: Args) -> Result<()> {
 /// entirely (the policy is delivered server-side, so we can't check
 /// against it without /sync; future generations will catch up once
 /// /sync is reachable).
-fn enforce_generator_policy(args: &Args) -> Result<()> {
+fn enforce_generator_policy(args: &mut Args) -> Result<()> {
     use crate::api::Api;
 
     let st = match crate::state::load()? {
@@ -151,192 +162,11 @@ fn enforce_generator_policy(args: &Args) -> Result<()> {
             ));
         }
     }
-    // no_ambiguous is a soft preference today; the generator doesn't
-    // expose an explicit toggle. Honor it by treating a true policy
-    // value as a no-op for now (future: filter ambiguous chars from
-    // the pool). Surfacing the gap rather than silently noncompliant:
+    // no_ambiguous is now enforced for real: force the avoid-ambiguous
+    // toggle on so the generated pool drops `O 0 I l 1` regardless of
+    // whether the user passed `--avoid-ambiguous`.
     if rules.no_ambiguous {
-        eprintln!(
-            "note: password_generator_rules.no_ambiguous is set but the \
-             generator does not yet filter ambiguous characters."
-        );
+        args.avoid_ambiguous = true;
     }
     Ok(())
-}
-
-fn char_password(args: &Args) -> Result<String> {
-    if args.length == 0 {
-        return Err(anyhow!("--length must be > 0"));
-    }
-    let mut classes: Vec<&str> = Vec::new();
-    if !args.no_lowercase {
-        classes.push(LOWER);
-    }
-    if !args.no_uppercase {
-        classes.push(UPPER);
-    }
-    if !args.no_numbers {
-        classes.push(NUMBERS);
-    }
-    if !args.no_symbols {
-        classes.push(SYMBOLS);
-    }
-    if classes.is_empty() {
-        return Err(anyhow!("at least one character class must be enabled"));
-    }
-    if args.length < classes.len() {
-        return Err(anyhow!(
-            "--length must be at least {} so each enabled class can appear at least once",
-            classes.len()
-        ));
-    }
-
-    let mut rng = OsRng;
-    let mut buf: Vec<char> = classes
-        .iter()
-        .map(|c| pick_one(&mut rng, c))
-        .collect::<Result<Vec<_>>>()?;
-    let pool: String = classes.concat();
-    let pool_chars: Vec<char> = pool.chars().collect();
-    while buf.len() < args.length {
-        buf.push(pool_chars[random_below(&mut rng, pool_chars.len() as u32) as usize]);
-    }
-    buf.shuffle(&mut rng);
-    Ok(buf.into_iter().collect())
-}
-
-fn passphrase(words_n: usize, separator: &str, capitalize: bool) -> Result<String> {
-    if words_n == 0 {
-        return Err(anyhow!("--words must be > 0"));
-    }
-    let words: Vec<&str> = EFF_LONG_WORDLIST
-        .lines()
-        .filter(|l| !l.is_empty())
-        .collect();
-    if words.len() != 7776 {
-        return Err(anyhow!(
-            "embedded EFF wordlist has wrong size: {} (expected 7776)",
-            words.len()
-        ));
-    }
-    let mut rng = OsRng;
-    let mut out: Vec<String> = Vec::with_capacity(words_n);
-    for _ in 0..words_n {
-        let idx = random_below(&mut rng, words.len() as u32) as usize;
-        let w = words[idx];
-        out.push(if capitalize {
-            capitalize_first(w)
-        } else {
-            w.to_string()
-        });
-    }
-    Ok(out.join(separator))
-}
-
-fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
-}
-
-fn pick_one(rng: &mut OsRng, s: &str) -> Result<char> {
-    let chars: Vec<char> = s.chars().collect();
-    if chars.is_empty() {
-        return Err(anyhow!("character class is empty"));
-    }
-    Ok(chars[random_below(rng, chars.len() as u32) as usize])
-}
-
-/// Unbiased random integer in `[0, n)` via rejection sampling. `rand`'s
-/// `gen_range` is biased on small ranges; this matches the popup's
-/// approach in `popup.js` for cross-client consistency.
-fn random_below(rng: &mut OsRng, n: u32) -> u32 {
-    if n == 0 {
-        return 0;
-    }
-    let limit = (u32::MAX / n) * n;
-    loop {
-        let mut buf = [0u8; 4];
-        rng.fill_bytes(&mut buf);
-        let v = u32::from_le_bytes(buf);
-        if v < limit {
-            return v % n;
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn embedded_wordlist_has_exactly_7776_words() {
-        let words: Vec<&str> = EFF_LONG_WORDLIST
-            .lines()
-            .filter(|l| !l.is_empty())
-            .collect();
-        assert_eq!(words.len(), 7776);
-        for w in &words {
-            assert!(!w.is_empty(), "no empty words allowed");
-            // Lowercase letters with hyphens (EFF list contains 4 hyphenated
-            // entries: drop-down, felt-tip, t-shirt, yo-yo). No whitespace
-            // would break the join-by-separator assumption.
-            for c in w.chars() {
-                assert!(
-                    c.is_ascii_lowercase() || c == '-',
-                    "unexpected char {c:?} in word {w:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn passphrase_yields_n_words_joined_by_separator() {
-        // Use a multi-char separator so the hyphenated EFF entries can't
-        // accidentally split the wrong way.
-        let p = passphrase(5, "::", false).unwrap();
-        let parts: Vec<&str> = p.split("::").collect();
-        assert_eq!(parts.len(), 5);
-        for w in parts {
-            assert!(!w.is_empty());
-        }
-    }
-
-    #[test]
-    fn passphrase_capitalize_uppercases_each_word() {
-        let p = passphrase(3, "::", true).unwrap();
-        for w in p.split("::") {
-            let first = w.chars().next().unwrap();
-            assert!(first.is_ascii_uppercase(), "word {w:?} not capitalized");
-            // Remaining chars are lowercase letters or hyphens (yo-yo, etc.)
-            for c in w.chars().skip(1) {
-                assert!(
-                    c.is_ascii_lowercase() || c == '-',
-                    "unexpected char {c:?} in word {w:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn passphrase_rejects_zero_words() {
-        assert!(passphrase(0, "-", false).is_err());
-    }
-
-    #[test]
-    fn passphrase_separator_passes_through() {
-        let p = passphrase(2, "::SEP::", false).unwrap();
-        assert!(p.contains("::SEP::"));
-    }
-
-    #[test]
-    fn random_below_is_within_range() {
-        let mut rng = OsRng;
-        for _ in 0..1000 {
-            let v = random_below(&mut rng, 7776);
-            assert!(v < 7776);
-        }
-    }
 }

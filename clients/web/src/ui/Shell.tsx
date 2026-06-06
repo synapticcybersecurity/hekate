@@ -12,13 +12,14 @@ import { For, Show } from "solid-js";
 
 import {
   IconBack,
+  IconGenerator,
   IconOrg,
   IconSend,
   IconSettings,
   IconVault,
 } from "./icons";
 
-export type TabId = "vault" | "send" | "org" | "settings";
+export type TabId = "vault" | "send" | "generator" | "org" | "settings";
 
 const TAB_DEFS: Array<{
   id: TabId;
@@ -27,6 +28,7 @@ const TAB_DEFS: Array<{
 }> = [
   { id: "vault", label: "Vault", Icon: IconVault },
   { id: "send", label: "Share", Icon: IconSend },
+  { id: "generator", label: "Generate", Icon: IconGenerator },
   { id: "org", label: "Orgs", Icon: IconOrg },
   { id: "settings", label: "Settings", Icon: IconSettings },
 ];

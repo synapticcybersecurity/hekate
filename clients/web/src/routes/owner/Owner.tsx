@@ -39,6 +39,7 @@ import { RotateKeys } from "./RotateKeys";
 import { TwoFactor } from "./TwoFactor";
 import { CipherDetail } from "./CipherDetail";
 import { EditCipher } from "./EditCipher";
+import { Generator } from "./Generator";
 import { Import } from "./Import";
 import { NewFileSend } from "./NewFileSend";
 import { NewTextSend } from "./NewTextSend";
@@ -484,6 +485,7 @@ function UnlockedShell(props: UnlockedShellProps) {
     ({
       vault: "Vault",
       send: "Share",
+      generator: "Generator",
       org: "Orgs",
       settings: "Settings",
     })[props.tab];
@@ -521,6 +523,9 @@ function UnlockedShell(props: UnlockedShellProps) {
             onNewText={props.onNewTextSend}
             onNewFile={props.onNewFileSend}
           />
+        </Match>
+        <Match when={props.tab === "generator"}>
+          <Generator />
         </Match>
         <Match when={props.tab === "org"}>
           <OrgsList

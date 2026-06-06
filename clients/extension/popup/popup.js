@@ -34,6 +34,7 @@ const ICON = {
   org:      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 21V9h6v12"/><path d="M3 9h18"/></svg>`,
   settings: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/><circle cx="12" cy="12" r="3"/></svg>`,
   search:   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
+  generator: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></svg>`,
   plus:     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
   copy:     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
   edit:     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
@@ -92,10 +93,11 @@ function iconForCipherType(t) {
 // the template construction).
 
 const TABS = [
-  { id: "vault",    icon: "vault",    label: "Vault",    onClick: () => renderVault() },
-  { id: "send",     icon: "send",     label: "Share",    onClick: () => renderSendsList() },
-  { id: "org",      icon: "org",      label: "Orgs",     onClick: () => renderOrgsList() },
-  { id: "settings", icon: "settings", label: "Settings", onClick: () => renderSettings() },
+  { id: "vault",     icon: "vault",     label: "Vault",     onClick: () => renderVault() },
+  { id: "send",      icon: "send",      label: "Share",     onClick: () => renderSendsList() },
+  { id: "generator", icon: "generator", label: "Generate",  onClick: () => renderGenerator() },
+  { id: "org",       icon: "org",       label: "Orgs",      onClick: () => renderOrgsList() },
+  { id: "settings",  icon: "settings",  label: "Settings",  onClick: () => renderSettings() },
 ];
 
 // `opts.title` (string)
@@ -4115,7 +4117,7 @@ async function renderAddEdit(idOrNull, typeForCreate) {
     btn.addEventListener("click", () => {
       const target = document.querySelector(`[name="${CSS.escape(btn.dataset.target)}"]`);
       if (!target) return;
-      target.value = generatePassword(20);
+      target.value = hekate.generatePassword({});
       target.type = "text";
     }),
   );
@@ -4397,33 +4399,161 @@ function totpCode(secretOrUrl) {
 
 // ===========================================================================
 // Password generator
+//
+// Generation itself lives in hekate-core and is reached through the wasm
+// bindings (`hekate.generatePassword` / `hekate.generatePassphrase`) — no
+// hand-rolled crypto in the client. Both the inline ⚄ on the password field
+// and this standalone screen call the same core.
 // ===========================================================================
 
-function generatePassword(length = 20) {
-  const lower = "abcdefghijklmnopqrstuvwxyz";
-  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const digits = "0123456789";
-  const symbols = "!@#$%^&*()-_=+[]{};:,.<>?/";
-  const all = lower + upper + digits + symbols;
-  const out = [pickChar(lower), pickChar(upper), pickChar(digits), pickChar(symbols)];
-  while (out.length < length) out.push(pickChar(all));
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = randomBelow(i + 1);
-    [out[i], out[j]] = [out[j], out[i]];
+const generatorState = {
+  mode: "password",
+  length: 20,
+  lowercase: true,
+  uppercase: true,
+  numbers: true,
+  symbols: true,
+  avoidAmbiguous: false,
+  words: 5,
+  separator: "-",
+  capitalize: false,
+};
+
+function generateFromState() {
+  const s = generatorState;
+  if (s.mode === "password") {
+    return hekate.generatePassword({
+      length: s.length,
+      lowercase: s.lowercase,
+      uppercase: s.uppercase,
+      numbers: s.numbers,
+      symbols: s.symbols,
+      avoidAmbiguous: s.avoidAmbiguous,
+    });
   }
-  return out.join("");
+  return hekate.generatePassphrase({
+    words: s.words,
+    separator: s.separator,
+    capitalize: s.capitalize,
+  });
 }
-function pickChar(s) {
-  return s[randomBelow(s.length)];
-}
-function randomBelow(n) {
-  const buf = new Uint32Array(1);
-  // Rejection sampling avoids the modulo bias that `% n` introduces.
-  const limit = Math.floor(0x100000000 / n) * n;
-  while (true) {
-    crypto.getRandomValues(buf);
-    if (buf[0] < limit) return buf[0] % n;
+
+function refreshGeneratorOutput() {
+  const out = document.getElementById("genOutput");
+  const err = document.getElementById("genError");
+  if (!out) return;
+  try {
+    out.textContent = generateFromState();
+    if (err) err.textContent = "";
+  } catch (e) {
+    out.textContent = "";
+    if (err) err.textContent = e && e.message ? e.message : String(e);
   }
+}
+
+function renderGenerator() {
+  clearTickers();
+  const s = generatorState;
+  const checkbox = (id, label, checked) =>
+    `<label class="checkbox">
+       <input type="checkbox" id="${id}" ${checked ? "checked" : ""}>
+       <span>${escapeHtml(label)}</span>
+     </label>`;
+  const passwordOpts = `
+    <label><span>Length: <strong id="genLengthVal">${s.length}</strong></span>
+      <input type="range" id="genLength" min="4" max="128" value="${s.length}">
+    </label>
+    ${checkbox("genLower", "Lowercase (a–z)", s.lowercase)}
+    ${checkbox("genUpper", "Uppercase (A–Z)", s.uppercase)}
+    ${checkbox("genNumbers", "Numbers (0–9)", s.numbers)}
+    ${checkbox("genSymbols", "Symbols (!@#…)", s.symbols)}
+    ${checkbox("genAvoid", "Avoid ambiguous (O 0 I l 1)", s.avoidAmbiguous)}`;
+  const passphraseOpts = `
+    <label><span>Words: <strong id="genWordsVal">${s.words}</strong></span>
+      <input type="range" id="genWords" min="3" max="12" value="${s.words}">
+    </label>
+    <label><span>Separator</span>
+      <input type="text" id="genSeparator" maxlength="8" value="${escapeAttr(s.separator)}">
+    </label>
+    ${checkbox("genCapitalize", "Capitalize each word", s.capitalize)}`;
+
+  const content = `
+    <div class="gen-mode" style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+      <button type="button" id="genModePassword" class="${s.mode === "password" ? "" : "secondary"}" style="flex:1;">Password</button>
+      <button type="button" id="genModePassphrase" class="${s.mode === "passphrase" ? "" : "secondary"}" style="flex:1;">Passphrase</button>
+    </div>
+    <div class="gen-output-row" style="display:flex; gap:0.5rem; align-items:stretch; margin-bottom:0.5rem;">
+      <output id="genOutput" class="gen-output" aria-label="Generated value" style="flex:1; font-family:monospace; word-break:break-all; padding:0.6rem 0.7rem; border:1px solid var(--border,#ccc); border-radius:6px; min-height:1.2rem;"></output>
+      <button type="button" id="genRegen" class="secondary" title="Regenerate" aria-label="Regenerate">↻</button>
+      <button type="button" id="genCopy" class="secondary">Copy</button>
+    </div>
+    <div id="genError" class="muted small" style="color:var(--danger,#c0392b); margin-bottom:0.5rem;"></div>
+    ${s.mode === "password" ? passwordOpts : passphraseOpts}`;
+
+  app.innerHTML = topShellHtml({
+    title: "Generator",
+    content,
+    activeTab: "generator",
+  });
+  wireTopShell({ activeTab: "generator" });
+
+  document.getElementById("genModePassword").addEventListener("click", () => {
+    generatorState.mode = "password";
+    renderGenerator();
+  });
+  document.getElementById("genModePassphrase").addEventListener("click", () => {
+    generatorState.mode = "passphrase";
+    renderGenerator();
+  });
+  document
+    .getElementById("genRegen")
+    .addEventListener("click", () => refreshGeneratorOutput());
+  document.getElementById("genCopy").addEventListener("click", () => {
+    const v = document.getElementById("genOutput").textContent;
+    if (v) {
+      void copyWithAutoClear(
+        v,
+        s.mode === "password" ? "Password" : "Passphrase",
+      );
+    }
+  });
+
+  if (s.mode === "password") {
+    const len = document.getElementById("genLength");
+    len.addEventListener("input", (e) => {
+      generatorState.length = Number(e.target.value);
+      document.getElementById("genLengthVal").textContent =
+        generatorState.length;
+      refreshGeneratorOutput();
+    });
+    const classToggle = (id, key) =>
+      document.getElementById(id).addEventListener("change", (e) => {
+        generatorState[key] = e.target.checked;
+        refreshGeneratorOutput();
+      });
+    classToggle("genLower", "lowercase");
+    classToggle("genUpper", "uppercase");
+    classToggle("genNumbers", "numbers");
+    classToggle("genSymbols", "symbols");
+    classToggle("genAvoid", "avoidAmbiguous");
+  } else {
+    const words = document.getElementById("genWords");
+    words.addEventListener("input", (e) => {
+      generatorState.words = Number(e.target.value);
+      document.getElementById("genWordsVal").textContent = generatorState.words;
+      refreshGeneratorOutput();
+    });
+    document.getElementById("genSeparator").addEventListener("input", (e) => {
+      generatorState.separator = e.target.value;
+      refreshGeneratorOutput();
+    });
+    document.getElementById("genCapitalize").addEventListener("change", (e) => {
+      generatorState.capitalize = e.target.checked;
+      refreshGeneratorOutput();
+    });
+  }
+
+  refreshGeneratorOutput();
 }
 
 // ===========================================================================

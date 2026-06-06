@@ -17,6 +17,10 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     encstring::EncString,
+    generate::{
+        passphrase as core_passphrase, password as core_password, PassphraseOptions,
+        PasswordOptions,
+    },
     kdf::{
         compute_kdf_bind_mac as core_compute_kdf_bind_mac,
         derive_kdf_bind_key as core_derive_kdf_bind_key,
@@ -62,6 +66,26 @@ pub fn totp_code(secret_or_uri: &str, now_secs: f64) -> Result<JsValue, JsValue>
         period: t.period,
     })
     .map_err(js_err)
+}
+
+/// Generate a character-class password. `opts` is a JS object like
+/// `{ length: 20, lowercase: true, uppercase: true, numbers: true,
+/// symbols: true, avoidAmbiguous: false }`; missing fields fall back to the
+/// defaults (a 20-character all-classes password). Single source of truth
+/// shared with the CLI — the clients no longer hand-roll generation.
+#[wasm_bindgen(js_name = generatePassword)]
+pub fn generate_password(opts: JsValue) -> Result<String, JsValue> {
+    let opts: PasswordOptions = serde_wasm_bindgen::from_value(opts).map_err(js_err)?;
+    core_password(&opts).map_err(js_err)
+}
+
+/// Generate an EFF-wordlist passphrase. `opts` is a JS object like
+/// `{ words: 5, separator: "-", capitalize: false }`; missing fields fall back
+/// to the defaults (5 words, `-` separator, no capitalization).
+#[wasm_bindgen(js_name = generatePassphrase)]
+pub fn generate_passphrase(opts: JsValue) -> Result<String, JsValue> {
+    let opts: PassphraseOptions = serde_wasm_bindgen::from_value(opts).map_err(js_err)?;
+    core_passphrase(&opts).map_err(js_err)
 }
 
 fn key32(bytes: &[u8]) -> Result<[u8; 32], JsValue> {
