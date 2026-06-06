@@ -32,6 +32,7 @@ use crate::{
         verifying_key_from_seed as core_verifying_key_from_seed, AttachmentTuple, ManifestEntry,
         VaultManifest, ATTACHMENTS_ROOT_LEN, NO_ATTACHMENTS_ROOT,
     },
+    totp::totp_code as core_totp_code,
 };
 use ed25519_dalek::Signature;
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,28 @@ use zeroize::Zeroizing;
 
 fn js_err(msg: impl ToString) -> JsValue {
     JsValue::from_str(&msg.to_string())
+}
+
+/// RFC 6238 TOTP code for a cipher's authenticator secret. `secret_or_uri` is a
+/// bare base32 secret or a full `otpauth://` URI; `now_secs` is the caller's
+/// unix time (seconds) — passed in so the core stays clock-free and testable.
+/// Returns `{ code, remaining, period }`, matching the shape the JS callers
+/// previously built themselves.
+#[wasm_bindgen(js_name = totpCode)]
+pub fn totp_code(secret_or_uri: &str, now_secs: f64) -> Result<JsValue, JsValue> {
+    #[derive(Serialize)]
+    struct JsTotp {
+        code: String,
+        remaining: u32,
+        period: u32,
+    }
+    let t = core_totp_code(secret_or_uri, now_secs as u64).map_err(js_err)?;
+    serde_wasm_bindgen::to_value(&JsTotp {
+        code: t.code,
+        remaining: t.remaining,
+        period: t.period,
+    })
+    .map_err(js_err)
 }
 
 fn key32(bytes: &[u8]) -> Result<[u8; 32], JsValue> {
