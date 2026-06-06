@@ -32,6 +32,15 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
 
 ## Queued work (with kickoff plans)
 
+- **queued: #43 — extension save/update-password capture.** Autofill today is
+  popup-initiated and fill-only (`fillActiveTab`/`pageFill` in
+  `clients/extension/popup/popup.js`); there is **no content script**, so the
+  extension never offers to save a new login or update an existing one when a
+  user enters credentials on a site. Needs a content script (both manifests)
+  detecting credential submissions + a confirm-before-save/update prompt routed
+  through the normal E2EE create/update path (no plaintext logged, host-scoped,
+  top-frame-only per Audit C2). Relates to #6/#41/#42.
+
 - **active: Desktop app (Tauri) — issue #8.** Foundation (tier A,
   Apple-Silicon macOS) shipped: `clients/desktop/` Tauri 2 shell wrapping
   the SPA, configurable API base (`apiUrl()` + first-run server screen),
