@@ -246,7 +246,9 @@ async fn tus_create(
     // Bound size_pt before any size arithmetic (E1, issue #18). upload_length
     // is already capped above; a plaintext can't exceed the ciphertext cap.
     if size_pt as u64 > state.config.max_attachment_bytes {
-        return Err(ApiError::bad_request("size_pt exceeds the maximum attachment size"));
+        return Err(ApiError::bad_request(
+            "size_pt exceeds the maximum attachment size",
+        ));
     }
 
     // Validate UUIDv7 shape on both ids (defense vs path-traversal-via-id).
