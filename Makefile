@@ -266,6 +266,11 @@ fmt-check: dev-image ## rustfmt --check
 clippy: dev-image ## clippy with -D warnings
 	$(DEV_RUN) cargo clippy --all-targets -- -D warnings
 
+.PHONY: hooks
+hooks: ## Activate the repo git hooks (.githooks: pre-commit rustfmt gate)
+	git config core.hooksPath .githooks
+	@echo "git hooks activated (core.hooksPath = .githooks)"
+
 .PHONY: audit
 audit: dev-image ## cargo audit (advisories; see .cargo/audit.toml)
 	$(DEV_RUN) bash -c 'cargo install --locked cargo-audit >/dev/null && cargo audit'
