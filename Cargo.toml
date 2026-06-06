@@ -87,6 +87,7 @@ keepass = { version = "0.7", default-features = false, features = ["save_kdbx4"]
 # + embedded newlines survive the round-trip.
 csv = "1"
 hkdf = "0.12"
+sha1 = "0.10"
 sha2 = "0.10"
 rand = "0.8"
 zeroize = { version = "1.8", features = ["derive"] }

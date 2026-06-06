@@ -27,6 +27,7 @@ pub mod org_roster;
 pub mod passkey;
 pub mod send;
 pub mod signcrypt;
+pub mod totp;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

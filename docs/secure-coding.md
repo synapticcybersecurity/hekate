@@ -60,6 +60,16 @@ in the security-analysis pass.
   (`account rotate-keys`, member-removal rotation) — a field that isn't
   rewrapped becomes undecryptable after rotation. See the
   rotate-keys rewrap invariant.
+- **Hash-function usage — HMAC-SHA1 is allowed only where an interop
+  standard mandates it.** Specifically **TOTP code generation (RFC 6238 /
+  RFC 4226)**, whose default and effectively-universal MAC is HMAC-SHA1.
+  This is a MAC/PRF use, *not* a collision-resistance use — HMAC security
+  does not rely on the collision resistance of the hash, and there are no
+  practical attacks on HMAC-SHA1. SHA-1 for **integrity, fingerprints, or
+  signatures** remains disallowed. The TOTP primitive lives in
+  `hekate-core::totp` (one tested implementation, validated against the
+  RFC 6238 Appendix B vectors); clients call it through the wasm bindings
+  instead of re-implementing the crypto.
 
 ## 4. KDF & password handling
 

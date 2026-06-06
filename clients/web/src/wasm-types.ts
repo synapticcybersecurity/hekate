@@ -21,6 +21,14 @@ export type KdfParams = Record<string, unknown>;
 export interface HekateCore {
   version(): string;
 
+  /** RFC 6238 TOTP for a cipher's authenticator secret. `secretOrUri` is a
+   *  bare base32 secret or a full `otpauth://` URI; `nowSecs` is the caller's
+   *  unix time in seconds. Returns the code plus the live countdown. */
+  totpCode(
+    secretOrUri: string,
+    nowSecs: number,
+  ): { code: string; remaining: number; period: number };
+
   // ---------------------------------------------------------------------
   // Send recipient flow (C.1)
   // ---------------------------------------------------------------------
