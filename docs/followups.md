@@ -39,15 +39,17 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
   client UI. Screenshots — the last operator task for the Chrome/Edge/AMO
   listings (#32/#33/#34) — are deliberately held until both land so the shots
   show the real features.
-    1. **#42 — live TOTP on login items.** Web vault side **DONE + committed**
-       (`b460d8f`, branch `feature/42-totp-on-login`): added the `totp` field to
-       the Login type (`clients/web/src/lib/cipher.ts`), a `TotpField` render in
-       `clients/web/src/routes/owner/CipherDetail.tsx`, and a copy-TOTP-code
-       button on login rows in `clients/web/src/routes/owner/Vault.tsx`.
-       **Pick up here:** port the same onto login items in the extension —
-       `clients/extension/popup/popup.js` (login detail render + list-row copy).
-       The popup already renders TOTP for the dedicated type-6 cipher, so mirror
-       that path onto type-1 logins that carry a `totp` field.
+    1. **#42 — live TOTP on login items. DONE (web + extension).** Web vault
+       side: `totp` field on the Login type (`clients/web/src/lib/cipher.ts`),
+       a `TotpField` render in `CipherDetail.tsx`, copy-TOTP-code on login rows
+       in `Vault.tsx`. Extension side (`clients/extension/popup/popup.js`): added
+       the editable `totp` field to the Login type def, a live ticking-code line
+       + copy-TOTP button on login rows that carry a `data.totp`, and generalized
+       `startTickers`/`fetchTotpCode` (via a shared `totpSecretOf` helper) to read
+       `data.totp` for logins alongside `data.secret` for type-6. The popup has no
+       read-only detail view, so the row is the show+copy surface. **Remaining:
+       in-browser smoke** (load unpacked, view a login with a TOTP, confirm the
+       ticking code + copy) — can't be done headlessly.
     2. **#41 — password generator UI.** Queued **after #42**. The generator
        logic exists but is inline-only (web vault button gated behind an unset
        flag; extension has only a small ⚄ button). Needs a discoverable

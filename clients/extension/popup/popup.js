@@ -227,7 +227,7 @@ const dec = new TextDecoder();
 //
 // JSON-key conventions match the CLI exactly so a cipher created in one
 // can be edited in the other:
-//   login:    { username, password, uri }                            (lowercase)
+//   login:    { username, password, uri, totp }                      (lowercase)
 //   note:     {} — body lives in the notes field
 //   card:     { cardholderName, brand, number, expMonth, expYear, code }
 //   identity: { title, firstName, middleName, lastName, company, email,
@@ -245,6 +245,14 @@ const CIPHER_TYPES = {
       { name: "username", label: "Username", type: "text" },
       { name: "password", label: "Password", type: "password", reveal: true, generator: true },
       { name: "uri", label: "URI", type: "url", placeholder: "https://example.com" },
+      {
+        name: "totp",
+        label: "Authenticator key (TOTP)",
+        type: "password",
+        reveal: true,
+        autocomplete: "off",
+        placeholder: "otpauth://totp/… or BASE32",
+      },
     ],
     summarize: (d) => d.username || d.uri || null,
   },
@@ -1490,12 +1498,17 @@ function renderRow(c, opts) {
   const id = escapeAttr(c.id);
   const summary = summarizeRow(c);
   const typeIcon = icon(iconForCipherType(c.type));
+  // Logins keep their username/URI summary; the live TOTP code (when the
+  // login carries a data.totp secret) renders on its own line below so both
+  // stay visible. Type-6 TOTP ciphers render the code on the summary line.
+  const loginTotp = c.type === 1 && c.data && c.data.totp;
   return `
     <div class="row" data-id="${id}">
       <div class="row-icon" data-type="${c.type}">${typeIcon}</div>
       <div class="row-main">
         <div class="row-name">${escapeHtml(c.name)}</div>
         <div class="muted small" data-totp-display="${c.type === 6 ? id : ""}">${escapeHtml(summary)}</div>
+        ${loginTotp ? `<div class="muted small totp-line" data-totp-display="${id}">loading code…</div>` : ""}
       </div>
       <div class="row-actions">
         ${
@@ -1516,6 +1529,9 @@ function rowActions(c) {
     if (canFill) buttons.push(`<button class="fill" data-id="${id}" title="Fill on this page" aria-label="Fill">${icon("fill")}</button>`);
     if (c.data.password) {
       buttons.push(`<button data-copy="${escapeAttr(c.data.password)}" data-copy-label="Password" title="Copy password" aria-label="Copy password">${icon("copy")}</button>`);
+    }
+    if (c.data.totp) {
+      buttons.push(`<button class="totp-copy" data-id="${id}" title="Copy TOTP code" aria-label="Copy TOTP code">${icon("copy")}</button>`);
     }
   } else if (c.type === 6) {
     buttons.push(`<button class="totp-copy" data-id="${id}" title="Copy TOTP code" aria-label="Copy TOTP code">${icon("copy")}</button>`);
@@ -4324,18 +4340,32 @@ function clearTickers() {
   }
 }
 
+// The live-code secret lives in data.secret for a dedicated TOTP cipher
+// (type 6) and in data.totp for a login (type 1) that carries one.
+function totpSecretOf(c) {
+  if (!c || !c.data) return null;
+  if (c.type === 6) return c.data.secret || null;
+  if (c.type === 1) return c.data.totp || null;
+  return null;
+}
+
 function startTickers(rowsContainer, ciphers) {
-  const totps = ciphers.filter((c) => c.type === 6 && c.data && c.data.secret);
+  const totps = ciphers.filter((c) => totpSecretOf(c));
   if (totps.length === 0) return;
   const refresh = async () => {
     for (const c of totps) {
       const cell = rowsContainer.querySelector(`[data-totp-display="${cssEscape(c.id)}"]`);
       if (!cell) continue;
       try {
-        const { code, remaining } = await totpCode(c.data.secret);
-        const issuer = c.data.issuer || "";
-        const acct = c.data.accountName || "";
-        const prefix = [issuer, acct].filter(Boolean).join(" / ");
+        const { code, remaining } = await totpCode(totpSecretOf(c));
+        // Logins already show their name/username above; only the dedicated
+        // TOTP cipher prefixes the code with issuer / account.
+        let prefix = "";
+        if (c.type === 6) {
+          const issuer = c.data.issuer || "";
+          const acct = c.data.accountName || "";
+          prefix = [issuer, acct].filter(Boolean).join(" / ");
+        }
         cell.textContent = `${prefix ? prefix + "  " : ""}${code}  (${remaining}s)`;
       } catch (_) {
         cell.textContent = "(invalid TOTP secret)";
@@ -4351,8 +4381,9 @@ async function fetchTotpCode(cipherId) {
   const s = await loadSession();
   const accountKey = b64urlDecode(s.account_key_b64);
   const decoded = decryptFull(c, accountKey);
-  if (!(decoded.data && decoded.data.secret)) throw new Error("missing secret");
-  const { code } = await totpCode(decoded.data.secret);
+  const secret = totpSecretOf({ type: c.type, data: decoded.data });
+  if (!secret) throw new Error("missing secret");
+  const { code } = await totpCode(secret);
   return code;
 }
 
