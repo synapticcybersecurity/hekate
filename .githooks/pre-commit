@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+# hekate pre-commit hook — block commits that would fail CI's rustfmt gate.
+#
+# Opt-in: activate with `make hooks` (sets core.hooksPath to .githooks).
+# Runs `make fmt-check` (cargo fmt --all -- --check, inside the dev image)
+# only when the commit stages Rust sources, so doc-only commits stay fast
+# and don't spin Docker. Keeps the check scoped to formatting; clippy/test
+# remain CI's job.
+
+set -eu
+
+# Staged, added/copied/modified files this commit (exclude deletions).
+staged_rs=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs')
+
+if [ -z "$staged_rs" ]; then
+	exit 0
+fi
+
+echo "pre-commit: staged Rust changes — running 'make fmt-check'…"
+
+if ! make fmt-check; then
+	echo >&2
+	echo >&2 "✗ rustfmt check failed — commit blocked."
+	echo >&2 "  Fix with:  make fmt   (then re-stage and commit)"
+	echo >&2 "  Bypass once (not recommended):  git commit --no-verify"
+	exit 1
+fi
+
+echo "pre-commit: rustfmt clean ✓"

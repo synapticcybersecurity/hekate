@@ -42,6 +42,18 @@ The full target list is `make help`.
 If you'd rather use a host Rust toolchain, the workspace builds on
 stable Rust ≥ 1.89 (declared in [`Cargo.toml`](Cargo.toml)).
 
+### Git hooks (recommended, one-time)
+
+```bash
+make hooks       # activate .githooks (sets core.hooksPath)
+```
+
+This installs a `pre-commit` hook that runs `make fmt-check` whenever a
+commit stages Rust sources, so formatting drift is caught locally instead
+of failing CI (a red `cargo fmt --all -- --check` on `main` blocks every
+open PR). Doc-only commits skip the check. Bypass once with
+`git commit --no-verify` if you must.
+
 ## Before opening a PR
 
 Run, at minimum:
