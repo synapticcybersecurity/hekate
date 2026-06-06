@@ -349,6 +349,25 @@ function CipherRow(p: CipherRowProps) {
           >
             <IconCopy />
           </button>
+          <Show when={str(p.item.data?.totp)}>
+            <button
+              type="button"
+              class="icon-btn"
+              title="Copy TOTP code"
+              aria-label="Copy TOTP code"
+              onClick={async () => {
+                try {
+                  const { code } = await totpCode(str(p.item.data?.totp) ?? "");
+                  await p.onCopy("Code", code);
+                } catch (err) {
+                  await p.onCopy("Code", undefined);
+                  console.error(err);
+                }
+              }}
+            >
+              <IconCopy />
+            </button>
+          </Show>
         </Show>
         <Show when={p.item.type === CipherType.Totp}>
           <button

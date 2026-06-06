@@ -172,6 +172,9 @@ function TypeFields(props: {
             onCopy={props.onCopy}
           />
           <Field label="URI" value={str(d.uri)} onCopy={props.onCopy} />
+          <Show when={str(d.totp)}>
+            <TotpField secret={str(d.totp)!} onCopy={props.onCopy} />
+          </Show>
         </FieldList>
       );
     case CipherType.Card:

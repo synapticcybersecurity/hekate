@@ -103,6 +103,14 @@ export const CIPHER_TYPE_DEFS: Record<number, CipherTypeDef> = {
         kind: "url",
         placeholder: "https://example.com",
       },
+      {
+        name: "totp",
+        label: "Authenticator key (TOTP)",
+        kind: "password",
+        reveal: true,
+        autocompleteOff: true,
+        placeholder: "otpauth://totp/… or BASE32",
+      },
     ],
   },
   [CipherType.Note]: {
