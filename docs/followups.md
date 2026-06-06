@@ -32,28 +32,49 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
 
 ## Queued work (with kickoff plans)
 
-- **active (near-term): feature gaps blocking extension store screenshots —
-  #42 + #41.** Both surfaced while prepping the browser-extension store
-  submission: the store listing (`docs/store-listings.md`) advertises a
-  password generator and live TOTP codes that weren't actually visible in the
-  client UI. Screenshots — the last operator task for the Chrome/Edge/AMO
-  listings (#32/#33/#34) — are deliberately held until both land so the shots
-  show the real features.
-    1. **#42 — live TOTP on login items. DONE (web + extension).** Web vault
-       side: `totp` field on the Login type (`clients/web/src/lib/cipher.ts`),
-       a `TotpField` render in `CipherDetail.tsx`, copy-TOTP-code on login rows
-       in `Vault.tsx`. Extension side (`clients/extension/popup/popup.js`): added
-       the editable `totp` field to the Login type def, a live ticking-code line
-       + copy-TOTP button on login rows that carry a `data.totp`, and generalized
-       `startTickers`/`fetchTotpCode` (via a shared `totpSecretOf` helper) to read
-       `data.totp` for logins alongside `data.secret` for type-6. The popup has no
-       read-only detail view, so the row is the show+copy surface. **Remaining:
-       in-browser smoke** (load unpacked, view a login with a TOTP, confirm the
-       ticking code + copy) — can't be done headlessly.
-    2. **#41 — password generator UI.** Queued **after #42**. The generator
-       logic exists but is inline-only (web vault button gated behind an unset
-       flag; extension has only a small ⚄ button). Needs a discoverable
-       generator UI in both the web vault and the popup.
+- **active (near-term): #41 — last feature gap blocking extension store
+  screenshots.** The store listing (`docs/store-listings.md`) advertises a
+  password generator and live TOTP that weren't visible in the client UI.
+  Screenshots — the last operator task for the Chrome/Edge/AMO listings
+  (#32/#33/#34) — are held until the advertised features are real.
+    - **#42 — live TOTP on login items. DONE + MERGED** (PR #48). Login rows in
+      both clients show a live ticking code + copy when the login carries a
+      `data.totp`. Browser-smoked.
+    - **TOTP code-gen consolidated into `hekate-core` — DONE + MERGED** (#49 /
+      PR #50). One RFC-6238-tested impl in `crates/hekate-core/src/totp.rs`,
+      exposed via wasm (`totpCode`); both clients call it. Pattern to reuse for
+      #41 (see below).
+    1. **#41 — password generator UI (standalone + options + passphrase).**
+       **The remaining screenshot blocker. Kickoff:**
+       - **What exists today (inline-only, fixed):** a CSPRNG `generatePassword(length=20)`
+         — fixed 4 char-classes, rejection-sampled `crypto.getRandomValues`,
+         class-minimums + Fisher-Yates — duplicated in **two** places:
+         `clients/web/src/lib/passwordGen.ts` and the extension
+         `clients/extension/popup/popup.js` (`generatePassword`/`pickChar`/`randomBelow`,
+         ~the "Password generator" section). No options UI, **no passphrase**, no
+         wordlist anywhere in the repo.
+       - **Entry points today:** web shows a "Generate" button only when a field
+         def sets `f.generate` (`clients/web/src/routes/owner/EditCipher.tsx` ~L334,
+         `<Show when={f.generate}>`); extension shows the ⚄ via `f.generator`
+         (`popup.js` field def L246 + render ~L4165). Both are inline-on-password
+         only — there is **no standalone generator surface**.
+       - **Scope:** (a) a discoverable **standalone** generator (web vault route/panel
+         + extension popup screen, reachable from the vault, not just the edit form);
+         (b) **options** — length, per-class toggles (lower/upper/digits/symbols),
+         optional "avoid ambiguous"; needs `generatePassword` generalized to take an
+         options struct; (c) **passphrase** mode — word count + separator, needs a
+         bundled wordlist (EFF large list is the usual choice).
+       - **Design decision to settle first (mirror #49):** the generator is already
+         JS-duplicated (same drift smell TOTP had). Strongly consider consolidating
+         password + passphrase generation into `hekate-core` (CSPRNG via
+         `getrandom`/`OsRng`, options struct, wordlist + unit tests) exposed through
+         wasm, deleting the two JS copies — rather than extending both JS impls. This
+         is the cleaner path and matches the just-shipped TOTP consolidation.
+       - **Out of scope:** generator integration on #43's save/signup flow (that's a
+         later #43 enhancement). Don't build #43 here.
+       - **Verify:** core unit tests (charset/length/passphrase invariants); web tsc;
+         `make extension` + browser smoke (server already runs at
+         `hekate.localhost:8088`); then this un-gates the store screenshots.
 
 - **queued: #43 — extension save/update-password capture.** Autofill today is
   popup-initiated and fill-only (`fillActiveTab`/`pageFill` in
