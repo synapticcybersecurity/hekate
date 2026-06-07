@@ -21,8 +21,10 @@
 use std::path::{Path, PathBuf};
 
 use axum::{
-    http::{header, HeaderValue},
-    response::{Html, Redirect},
+    body::Body,
+    http::{header, HeaderValue, Request},
+    middleware::{self, Next},
+    response::{Html, Redirect, Response},
     routing::get,
     Router,
 };
@@ -40,6 +42,31 @@ use crate::AppState;
 const SPA_CSP: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; \
 style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; \
 connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'";
+
+/// Force revalidation on the wasm core assets (#53).
+///
+/// `hekate-core` is served at a *stable* filename (`hekate_core.js` /
+/// `hekate_core_bg.wasm`) and loaded by the SPA via a runtime dynamic
+/// `import()`. With no cache directives the browser applies heuristic
+/// freshness and keeps a stale copy across deploys, so the client runs an
+/// out-of-date crypto core — and a new client feature that calls a binding the
+/// cached wasm predates fails at runtime (the `generatePassword is not a
+/// function` report that surfaced this). `no-cache` lets the browser keep the
+/// file but revalidate every load (a cheap 304 via `Last-Modified` when
+/// unchanged); after a deploy the changed mtime yields a fresh 200.
+///
+/// Scoped by path to `**/wasm/**`, so it covers `/web/wasm/*` and
+/// `/send/wasm/*` without touching the content-hashed JS/CSS bundles (which
+/// change name per build and are safe to cache).
+async fn wasm_no_cache(req: Request<Body>, next: Next) -> Response {
+    let is_wasm = req.uri().path().contains("/wasm/");
+    let mut resp = next.run(req).await;
+    if is_wasm {
+        resp.headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
+    resp
+}
 
 pub fn router(web_dir: Option<&str>) -> Router<AppState> {
     if let Some(dir) = web_dir {
@@ -85,6 +112,8 @@ fn spa_router(dir: &Path) -> Router<AppState> {
             header::X_FRAME_OPTIONS,
             HeaderValue::from_static("DENY"),
         ))
+        // #53: keep the stable-named wasm core from going stale across deploys.
+        .layer(middleware::from_fn(wasm_no_cache))
 }
 
 fn placeholder_router() -> Router<AppState> {
