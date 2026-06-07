@@ -29,6 +29,25 @@ export interface HekateCore {
     nowSecs: number,
   ): { code: string; remaining: number; period: number };
 
+  /** Generate a character-class password. Missing option fields fall back to
+   *  the core defaults (20 chars, all four classes, ambiguous allowed). */
+  generatePassword(opts: {
+    length?: number;
+    lowercase?: boolean;
+    uppercase?: boolean;
+    numbers?: boolean;
+    symbols?: boolean;
+    avoidAmbiguous?: boolean;
+  }): string;
+
+  /** Generate an EFF-wordlist passphrase. Missing fields fall back to the core
+   *  defaults (5 words, `-` separator, no capitalization). */
+  generatePassphrase(opts: {
+    words?: number;
+    separator?: string;
+    capitalize?: boolean;
+  }): string;
+
   // ---------------------------------------------------------------------
   // Send recipient flow (C.1)
   // ---------------------------------------------------------------------

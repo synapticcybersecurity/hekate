@@ -30,7 +30,7 @@ import { deleteCipher, saveCipher, type CipherDraft } from "../../lib/cipherWrit
 import { copy } from "../../lib/clipboard";
 import { confirmDialog } from "../../lib/dialog";
 import { uploadManifestQuiet } from "../../lib/manifest";
-import { generatePassword } from "../../lib/passwordGen";
+import { generatePassword } from "../../lib/generate";
 import { getSession } from "../../lib/session";
 import { loadHekateCore } from "../../wasm";
 import { IconCopy, IconEye, IconEyeOff } from "../../ui/icons";
@@ -337,7 +337,9 @@ function DynamicField(props: DynamicFieldProps) {
             class="btn btn-secondary"
             style="white-space: nowrap;"
             title="Generate password"
-            onClick={() => props.onChange(generatePassword(20))}
+            onClick={() => {
+              void generatePassword().then((pw) => props.onChange(pw));
+            }}
           >
             Generate
           </button>
