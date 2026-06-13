@@ -123,6 +123,39 @@ async fn spawn_receiver() -> (u16, Arc<Mutex<Vec<Received>>>) {
     (port, received)
 }
 
+/// Spawn an attacker-controlled receiver that redirects every POST to
+/// `location` with a `307 Temporary Redirect` (which preserves the method
+/// and body — the worst case, since it replays the signed payload at the
+/// redirect target). Models the SSRF-via-redirect vector (audit S-H1
+/// follow-up): a public endpoint that passes `resolve_safe` at delivery
+/// time but bounces the request to an internal address. Returns the bound
+/// port plus a hit counter so a test can confirm the delivery was actually
+/// attempted before asserting the redirect target was not reached.
+async fn spawn_redirector(location: String) -> (u16, Arc<Mutex<usize>>) {
+    let hits: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let counter = hits.clone();
+    let app = Router::new().route(
+        "/hook",
+        post(move || {
+            let counter = counter.clone();
+            let location = location.clone();
+            async move {
+                *counter.lock().unwrap() += 1;
+                (
+                    StatusCode::TEMPORARY_REDIRECT,
+                    [(header::LOCATION, location)],
+                )
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (port, hits)
+}
+
 fn cipher_payload() -> Value {
     json!({
         "id": uuid::Uuid::new_v4().to_string(),
@@ -334,4 +367,74 @@ async fn deleted_webhook_stops_receiving() {
 
     tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(received.lock().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn webhook_does_not_follow_redirect_to_internal_target() {
+    // SSRF-via-redirect (audit S-H1 follow-up). The delivery client pins
+    // the connection to the validated IP of the *original* host, but a
+    // redirect points at a *new* host that bypasses both the `resolve_safe`
+    // IP check and the pin. An attacker registers a public-looking
+    // endpoint that redirects the delivery at an internal address; if the
+    // client followed it, the internal target would be hit. Redirect
+    // following is disabled, so the internal target must stay untouched.
+    let (internal_port, internal_received) = spawn_receiver().await;
+    let (attacker_port, attacker_hits) =
+        spawn_redirector(format!("http://127.0.0.1:{internal_port}/hook")).await;
+
+    let app = build_app().await;
+    let jwt = login(&app, "mallory@example.com").await;
+
+    // Webhook points at the attacker's endpoint (not the internal one).
+    let create = app
+        .clone()
+        .oneshot(
+            Request::post("/api/v1/account/webhooks")
+                .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"name":"evil","url":format!("http://127.0.0.1:{attacker_port}/hook")})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create.status(), StatusCode::CREATED);
+
+    // Trigger an event.
+    let create_cipher = app
+        .clone()
+        .oneshot(
+            Request::post("/api/v1/ciphers")
+                .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(cipher_payload().to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_cipher.status(), StatusCode::CREATED);
+
+    // Wait until the delivery attempt reaches the attacker endpoint (proves
+    // the worker actually ran a delivery), up to ~5 s.
+    for _ in 0..100 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        if *attacker_hits.lock().unwrap() >= 1 {
+            break;
+        }
+    }
+    assert!(
+        *attacker_hits.lock().unwrap() >= 1,
+        "expected the delivery to reach the attacker endpoint at least once"
+    );
+
+    // Give any (incorrectly) followed redirect time to land, then assert
+    // the internal target was never contacted.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(
+        internal_received.lock().unwrap().len(),
+        0,
+        "redirect to an internal target must NOT be followed (SSRF)"
+    );
 }
