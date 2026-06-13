@@ -272,9 +272,22 @@ async fn attempt_one(
     // accumulate across deliveries. `.resolve(host, addr)` makes
     // reqwest connect to the IP we just validated; the TLS layer
     // still sees `host` for SNI / cert verification.
+    //
+    // Audit S-H1 follow-up: disable redirect following. The `.resolve()`
+    // pin and `resolve_safe`'s IP check only cover the *original* host; a
+    // 3xx `Location` is a fresh request to a new host that bypasses both,
+    // so an attacker-controlled public endpoint could `302` the delivery
+    // to an internal address (e.g. 169.254.169.254 or a service on the
+    // local network) and defeat the SSRF defense entirely. A webhook
+    // receiver is expected to answer 2xx directly — following redirects
+    // has no legitimate use here and is pure SSRF surface. With redirects
+    // disabled, a 3xx is returned as-is and surfaces below as a
+    // non-success `HttpError` (visible via `last_status`); the redirect
+    // target is never contacted.
     let client = match reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(DELIVERY_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
         .resolve(&pinned.host, pinned.addr)
         .build()
     {
