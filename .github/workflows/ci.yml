@@ -78,3 +78,30 @@ jobs:
 
       - name: cargo build (wasm32-unknown-unknown, hekate-core)
         run: cargo build --release --target wasm32-unknown-unknown -p hekate-core
+
+  web:
+    name: Web client (typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node (pinned via clients/web/.nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: clients/web/.nvmrc
+          cache: npm
+          cache-dependency-path: clients/web/package-lock.json
+
+      - name: npm ci
+        working-directory: clients/web
+        run: npm ci
+
+      # `npm run build` is `tsc --noEmit && vite build`. The wasm core is
+      # loaded at runtime via a @vite-ignore dynamic import (types live in
+      # src/wasm-types.ts), so this needs no Rust/wasm-bindgen build — it is
+      # a pure Node typecheck + bundle. This is the gate that was missing
+      # when a TS error nearly merged (see #228).
+      - name: typecheck + build (tsc --noEmit && vite build)
+        working-directory: clients/web
+        run: npm run build
