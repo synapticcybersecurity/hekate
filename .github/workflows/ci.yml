@@ -105,3 +105,23 @@ jobs:
       - name: typecheck + build (tsc --noEmit && vite build)
         working-directory: clients/web
         run: npm run build
+
+  extension:
+    name: Extension lint (web-ext)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node (pinned via clients/web/.nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: clients/web/.nvmrc
+
+      # `make extension-lint` stages the Firefox MV3 build (manifest swap) and
+      # runs `web-ext lint`. The wasm core is loaded at runtime (not referenced
+      # by path in the manifest), so this needs no Rust/wasm-bindgen build —
+      # web-ext is fetched via npx. Catches manifest errors, banned/deprecated
+      # APIs, and JS syntax errors that nothing else in CI would. Part of #228.
+      - name: web-ext lint (Firefox MV3 manifest + JS)
+        run: make extension-lint

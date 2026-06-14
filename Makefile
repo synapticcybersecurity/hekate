@@ -148,6 +148,22 @@ extension-firefox-zip: extension-firefox ## Produce AMO-uploadable artifact in d
 	@echo "AMO artifact:"
 	@ls -la dist/*.zip
 
+.PHONY: extension-lint
+extension-lint: ## Lint the Firefox MV3 manifest + JS (no wasm build; CI gate)
+	# Same staging as extension-firefox but WITHOUT the `extension` (wasm)
+	# prerequisite: web-ext lint validates the manifest + JS only, and the
+	# wasm core is loaded at runtime (not referenced by path in the manifest),
+	# so no Rust/wasm-bindgen build is needed. Keeps the CI gate fast.
+	rm -rf dist/extension-firefox-lint
+	mkdir -p dist/extension-firefox-lint
+	rsync -a clients/extension/ dist/extension-firefox-lint/ \
+	    --exclude README.md --exclude COMPILEandDEBUG.md \
+	    --exclude offscreen.html --exclude offscreen.js \
+	    --exclude wasm
+	cp dist/extension-firefox-lint/manifest.firefox.json dist/extension-firefox-lint/manifest.json
+	rm dist/extension-firefox-lint/manifest.firefox.json
+	npx --yes web-ext@10 lint --source-dir dist/extension-firefox-lint --no-config-discovery
+
 .PHONY: extension-zip
 extension-zip: extension ## Produce a Chrome Web Store / Edge-uploadable Chromium zip in dist/
 	rm -rf dist/extension-chromium
