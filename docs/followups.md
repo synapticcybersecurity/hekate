@@ -68,19 +68,28 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
   `com.synapticcyber.hekate`); **system tray + native menu + hide-to-tray**
   (#8); desktop bug fixes (#26 — Copy-URL share base, in-app dialogs
   replacing the no-op `window.confirm/alert/prompt`, macOS-padded app
-  icon). **Next slices, in order:**
-    1. **Touch ID unlock** (tier A) — **design written, DECISION PENDING**:
-       see [`desktop-touch-id.md`](desktop-touch-id.md). Stores the 32-byte
-       master key in a biometric-gated Keychain item + adds the first
-       custom IPC command (both flagged in `secure-coding.md` §8 as
-       review-required). Awaiting sign-off on (a) persisting the key at all
-       and (b) access-control strictness. Biometrics only test in a *signed*
-       build (`make desktop-release`).
+  icon); **in-app "change server"** in Settings (#227 / story E3.4 #144).
+
+  **Signing is configured** (2026-07-21): Developer ID Application cert
+  for Synaptic Cybersecurity Alliance, Inc. (`PKKD5DLS7L`) is in the
+  keychain and all four notarization env vars are set —
+  `make desktop-sign-check` passes, so `make desktop-release` can produce
+  a signed + notarized build on demand. *Producing* one is unblocked;
+  *publishing* one is still behind the pre-publish security gate above.
+
+  **Next slices, in order:**
+    1. **Touch ID unlock** (tier A) — **decisions locked; code complete on
+       PR #30** (rebased onto main 2026-07-21, all five CI checks green).
+       Design: [`desktop-touch-id.md`](desktop-touch-id.md). A random
+       32-byte unlock key in a `.biometryCurrentSet` Keychain item wraps
+       the master key; adds the app's first four custom IPC commands (both
+       flagged in `secure-coding.md` §8 as review-required). **Where to
+       pick up:** security review of the branch + a biometric smoke against
+       a *signed* build (`make desktop-release` — biometrics don't work in
+       an unsigned `cargo tauri dev` binary), then merge.
     2. **Auto-update** — Tauri built-in updater plugin + signed update
        manifest endpoint (needs a release channel first).
-    3. **In-app "change server"** — first-run selection exists; add a
-       Settings affordance to switch servers later.
-    4. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
+    3. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
        B** (macOS credential provider) as later milestones.
   - **Resolved (Dock icon white tile):** the prior icns was a blue squircle
     composited onto an *opaque white* background (corners `255,255,255,255`),
@@ -308,9 +317,10 @@ real product.
 
 - [ ] **macOS app** — Tauri wrapper around the web vault SPA.
       Foundation (tier A) shipped under #8 (`clients/desktop/`,
-      `make desktop-build` → .app/.dmg, Apple-Silicon). Still open:
-      code signing + notarization, Mac App Store publication
-      (sandboxed) vs direct .dmg download, auto-update.
+      `make desktop-build` → .app/.dmg, Apple-Silicon). Signing +
+      notarization are **configured** (2026-07-21) — `make desktop-release`
+      signs, notarizes and staples. Still open: choosing Mac App Store
+      publication (sandboxed) vs direct .dmg download, and auto-update.
 - [ ] **Windows app** — Tauri / Electron / native; includes
       Microsoft Store publication and direct download (.msi /
       .exe installer).
@@ -353,9 +363,12 @@ These don't surface to end users but block all of the above:
 
 - [x] **Apple Developer account** ($99/year) — acquired 2026-05-30.
       Required for macOS notarization, iOS App Store, Mac App Store,
-      Safari Extension. Not yet wired into any build; first use is the
-      desktop signing/notarization slice (#8). Ongoing key-custody
-      discipline still applies.
+      Safari Extension. **Wired into the desktop build as of 2026-07-21**:
+      Developer ID Application cert (`PKKD5DLS7L`) in the keychain +
+      App Store Connect API key and the four `APPLE_*` env vars set, so
+      `make desktop-sign-check` passes and `make desktop-release` can
+      sign + notarize + staple. Ongoing key-custody discipline still
+      applies (HSM-backed custody is still open, below).
 - [ ] **Windows EV code-signing certificate** (~$300–400/year) —
       required for SmartScreen reputation; without it, every
       Windows install gets a "Windows protected your PC" warning.

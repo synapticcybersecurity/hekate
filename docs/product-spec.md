@@ -442,9 +442,11 @@ Table-stakes for being installable as a real product. Full sequencing in
 - **Docs-site path** — `/docs` sub-path vs `docs.` subdomain (pick when
   tooling lands).
 - **M6 project model** — flat-with-paths vs hierarchical-with-subtree-ACLs.
-- **Desktop Touch ID** — DECISION PENDING on (a) persisting the 32-byte
-  master key in a biometric-gated Keychain item at all, and (b)
-  access-control strictness. See [`desktop-touch-id.md`](desktop-touch-id.md).
+- ~~**Desktop Touch ID**~~ — **RESOLVED.** (a) persisting a biometric-gated
+  secret at rest: accepted, opt-in and per-device; (b) access control:
+  `.biometryCurrentSet` + `WhenUnlockedThisDeviceOnly`, no device-passcode
+  fallback. See [`desktop-touch-id.md`](desktop-touch-id.md); implemented on
+  PR #30, pending security review + signed-build smoke.
 - **Vault-item display hierarchy** — render `A/B/C`-style names as a
   client-side tree (pure UX polish, can ship anytime).
 - **Align M7/gate docs** with the deferred-external-audit posture (offer

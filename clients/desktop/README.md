@@ -23,10 +23,11 @@ later. Status is tracked in [`../../docs/status.md`](../../docs/status.md)
   - *Foundation (shipped):* Tauri 2 shell wrapping the web vault + wasm
     core, empty IPC, locked CSP, configurable server (first-run screen),
     `make desktop`/`desktop-build`, code-signing + notarization plumbing.
-  - *Polish:* ✅ system tray + native menu + hide-to-tray; ⬜ Touch ID /
-    Hello unlock (design in [`../../docs/desktop-touch-id.md`](../../docs/desktop-touch-id.md),
-    decision pending); ⬜ auto-update (needs a release channel); ⬜ in-app
-    "change server" in Settings (first-run selection exists today).
+  - *Polish:* ✅ system tray + native menu + hide-to-tray; ✅ in-app
+    "change server" in Settings; 🚧 Touch ID unlock (design in
+    [`../../docs/desktop-touch-id.md`](../../docs/desktop-touch-id.md) —
+    decisions locked, PR #30 pending review + signed smoke); ⬜ auto-update
+    (needs a release channel).
 - **Tier B — native credential provider (macOS first).** Register Hekate
   as a system credential / autofill provider so it can fill passwords and
   passkeys **OS-wide** (other apps, system sheets), not just in the Hekate
@@ -151,10 +152,9 @@ still subject to the project's pre-publish security posture (`docs/`).
   surface stays empty.
 
 ## Not yet wired (follow-ups)
-- **Touch ID unlock** — macOS `LocalAuthentication` wired into the vault
-  lock flow (tier A); needs a signed build to test biometrics.
+- **Touch ID unlock** — implemented on PR #30 (macOS `LocalAuthentication` +
+  a SEP-gated Keychain item wired into the vault lock flow, tier A); pending
+  security review and a biometric smoke against a signed build.
 - **Auto-update** — strategy chosen (Tauri's built-in updater); plugin +
   signed-manifest endpoint to be wired once a release channel exists.
-- **In-app "change server"** — first-run selection is implemented; a
-  Settings affordance to switch servers later is a follow-up.
 - SSH agent (tier C); native credential provider (tier B).
