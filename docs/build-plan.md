@@ -177,19 +177,22 @@ done. Ordered remaining slices:
 - **E3.1 — ✅ Send-delete + Copy-URL fixes (#26, closed 2026-06-13).** In-app
   `dialog.ts`/`DialogHost.tsx` replaced the no-op `window.confirm`;
   `shareBaseUrl()` fixed the `tauri://` share link. Verified in code.
-- **E3.2 — Touch ID unlock (DECISION PENDING).** Store the 32-byte master key
-  in a biometric-gated Keychain item; adds the first custom IPC command (both
-  flagged review-required in `secure-coding.md` §8). *Blocked on a product
-  decision:* (a) persist the key at all? (b) access-control strictness? See
-  [`desktop-touch-id.md`](desktop-touch-id.md). *Done when:* the decision is
-  signed off, implemented, and tested in a **signed** build (biometrics only
-  work in `make desktop-release`).
+- **E3.2 — Touch ID unlock 🚧 (decisions locked; PR #30 green).** Both product
+  decisions are settled in [`desktop-touch-id.md`](desktop-touch-id.md):
+  (a) persist a biometric-gated secret at rest — **accepted**, opt-in and
+  per-device; (b) access control — **`.biometryCurrentSet` +
+  `WhenUnlockedThisDeviceOnly`, no device-passcode fallback**. Implemented as
+  a random 32-byte unlock key (Keychain, SEP-gated) wrapping the master key,
+  plus the app's first four custom IPC commands — both flagged review-required
+  in `secure-coding.md` §8. *Remaining:* security review of the branch +
+  biometric smoke against a **signed** build (biometrics only work via
+  `make desktop-release`), then merge.
 - **E3.3 — Auto-update.** Tauri built-in updater plugin + signed update
   manifest endpoint. *Depends on:* a release channel existing (Epic D).
   *Done when:* a signed update is delivered + verified end-to-end.
-- **E3.4 — In-app "change server."** Add a Settings affordance to switch
-  servers post-first-run. *Done when:* a user can re-point the desktop app
-  without reinstall.
+- **E3.4 — ✅ In-app "change server" (#227 / #144, shipped 2026-06-13).**
+  Settings affordance to re-point the desktop app post-first-run, with the
+  session cleared so the next login targets the new backend.
 - **E3.5 — Windows / Linux bundles.** MSI/MSIX + winget;
   AppImage/Flatpak/deb/rpm. *Done when:* a signed installer exists per OS
   (Windows signing depends on the EV cert, Epic D).

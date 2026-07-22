@@ -30,6 +30,72 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
 
 ## Smoke debts (verify before stacking more on top)
 
+## M7.2 tooling sweep — in progress (2026-07-21)
+
+Status snapshot so a fresh session can resume from this file alone.
+Story #172; epic #67.
+
+**Gates** (run in the dev image against `main`):
+
+| Gate | Result |
+|---|---|
+| `make fmt-check` | ✅ |
+| `make clippy` (`--all-targets -D warnings`) | ✅ 0 warnings |
+| `make deny` | ✅ |
+| `make audit` | ❌ → ✅ via PR #234 |
+
+`cargo audit` flagged RUSTSEC-2026-0185 (quinn-proto 0.11.14, 7.5 high).
+Not reachable — `cargo tree -i quinn-proto --target all -e all` finds
+nothing, i.e. a stale lockfile entry from reqwest's optional HTTP/3
+path. Bumped to 0.11.15 anyway (PR #234) rather than leave a vulnerable
+version in a committed lockfile.
+
+> **Gotcha worth remembering:** `cargo deny` resolves the *feature
+> graph*, `cargo audit` scans the *whole lockfile*. They legitimately
+> disagree. A green `deny` is not a clean bill of health on its own —
+> #172's acceptance requires both.
+
+**#18 + #22 findings — 11 of 13 fully remediated.** Verified against the
+code, not assumed. Fixed: E1, E3, E4, E5, E6, E7, E8, M1, M2, M3, L1.
+Remaining:
+
+- **E2 (PARTIAL) — hash the tus upload token at rest.** Send *download*
+  tokens were fixed (`sends.rs` `hash_download_token()`, SHA-256 + DST,
+  `WHERE token_hash = $1`), but the attachment **upload** token is still
+  stored and matched in plaintext with SQL `=` in
+  `crates/hekate-server/src/routes/attachments.rs` (queries around lines
+  356, 400, 531, 554, 575, 673, 848). *Pick up:* mirror the Send fix —
+  hash at rest + constant-time compare. Needs a migration, so it's the
+  larger of the two remaining.
+- **H1 (PARTIAL) — Send `/blob` download token.** The memory-amplification
+  half is fixed (`public_blob_download` streams via `read_range` in 64 KiB
+  chunks, `sends.rs:1053-1123`). Still open, and acknowledged in the
+  fixing commit's own message: (1) the download token stays reusable for
+  its full 5-min TTL — no consume logic in `public_blob_download`, while
+  `max_access_count` is only enforced in the `/access` handler
+  (`sends.rs:570-582`); (2) `/blob` is still on the lenient limiter, not
+  the strict one (`rate_limit.rs:94-99`, and its own test at
+  `rate_limit.rs:213` asserts this). *Pick up:* single-use token +
+  strict-limiter path. Server-side only, no schema change — the smaller
+  chunk, good place to restart.
+- **M2 (cosmetic)** — `web_app.rs::placeholder_router()` (the
+  "SPA not built" fallback) doesn't carry the CSP/nosniff/frame-deny
+  headers the real SPA gets. No secrets on that page; one-line fix if
+  wanted.
+
+**Still owed for #172's acceptance:** `/code-review ultra` over the
+shipped surface — operator-triggered and billed, so it can't be run by
+an agent. `/security-review` is best pointed at a diff (it reviews
+pending branch changes), so run it per-PR rather than over all of `main`.
+
+**Note:** issues #18 and #22 are still **open** on GitHub even though
+most of their contents shipped; they read far more alarming than the
+code warrants. Worth closing or annotating.
+
+**In flight (all CI-green, unmerged as of 2026-07-21):** #30 desktop
+Touch ID (needs security review + signed-build smoke) · #233 docs
+reconciliation · #234 quinn-proto bump · #235 E6 mandatory-AAD fix.
+
 ## Queued work (with kickoff plans)
 
 - **DONE (PR open): #41 — password generator (standalone + options +
@@ -68,19 +134,28 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
   `com.synapticcyber.hekate`); **system tray + native menu + hide-to-tray**
   (#8); desktop bug fixes (#26 — Copy-URL share base, in-app dialogs
   replacing the no-op `window.confirm/alert/prompt`, macOS-padded app
-  icon). **Next slices, in order:**
-    1. **Touch ID unlock** (tier A) — **design written, DECISION PENDING**:
-       see [`desktop-touch-id.md`](desktop-touch-id.md). Stores the 32-byte
-       master key in a biometric-gated Keychain item + adds the first
-       custom IPC command (both flagged in `secure-coding.md` §8 as
-       review-required). Awaiting sign-off on (a) persisting the key at all
-       and (b) access-control strictness. Biometrics only test in a *signed*
-       build (`make desktop-release`).
+  icon); **in-app "change server"** in Settings (#227 / story E3.4 #144).
+
+  **Signing is configured** (2026-07-21): Developer ID Application cert
+  for Synaptic Cybersecurity Alliance, Inc. (`PKKD5DLS7L`) is in the
+  keychain and all four notarization env vars are set —
+  `make desktop-sign-check` passes, so `make desktop-release` can produce
+  a signed + notarized build on demand. *Producing* one is unblocked;
+  *publishing* one is still behind the pre-publish security gate above.
+
+  **Next slices, in order:**
+    1. **Touch ID unlock** (tier A) — **decisions locked; code complete on
+       PR #30** (rebased onto main 2026-07-21, all five CI checks green).
+       Design: [`desktop-touch-id.md`](desktop-touch-id.md). A random
+       32-byte unlock key in a `.biometryCurrentSet` Keychain item wraps
+       the master key; adds the app's first four custom IPC commands (both
+       flagged in `secure-coding.md` §8 as review-required). **Where to
+       pick up:** security review of the branch + a biometric smoke against
+       a *signed* build (`make desktop-release` — biometrics don't work in
+       an unsigned `cargo tauri dev` binary), then merge.
     2. **Auto-update** — Tauri built-in updater plugin + signed update
        manifest endpoint (needs a release channel first).
-    3. **In-app "change server"** — first-run selection exists; add a
-       Settings affordance to switch servers later.
-    4. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
+    3. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
        B** (macOS credential provider) as later milestones.
   - **Resolved (Dock icon white tile):** the prior icns was a blue squircle
     composited onto an *opaque white* background (corners `255,255,255,255`),
@@ -308,9 +383,10 @@ real product.
 
 - [ ] **macOS app** — Tauri wrapper around the web vault SPA.
       Foundation (tier A) shipped under #8 (`clients/desktop/`,
-      `make desktop-build` → .app/.dmg, Apple-Silicon). Still open:
-      code signing + notarization, Mac App Store publication
-      (sandboxed) vs direct .dmg download, auto-update.
+      `make desktop-build` → .app/.dmg, Apple-Silicon). Signing +
+      notarization are **configured** (2026-07-21) — `make desktop-release`
+      signs, notarizes and staples. Still open: choosing Mac App Store
+      publication (sandboxed) vs direct .dmg download, and auto-update.
 - [ ] **Windows app** — Tauri / Electron / native; includes
       Microsoft Store publication and direct download (.msi /
       .exe installer).
@@ -353,9 +429,12 @@ These don't surface to end users but block all of the above:
 
 - [x] **Apple Developer account** ($99/year) — acquired 2026-05-30.
       Required for macOS notarization, iOS App Store, Mac App Store,
-      Safari Extension. Not yet wired into any build; first use is the
-      desktop signing/notarization slice (#8). Ongoing key-custody
-      discipline still applies.
+      Safari Extension. **Wired into the desktop build as of 2026-07-21**:
+      Developer ID Application cert (`PKKD5DLS7L`) in the keychain +
+      App Store Connect API key and the four `APPLE_*` env vars set, so
+      `make desktop-sign-check` passes and `make desktop-release` can
+      sign + notarize + staple. Ongoing key-custody discipline still
+      applies (HSM-backed custody is still open, below).
 - [ ] **Windows EV code-signing certificate** (~$300–400/year) —
       required for SmartScreen reputation; without it, every
       Windows install gets a "Windows protected your PC" warning.
