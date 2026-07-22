@@ -30,6 +30,72 @@ Do not treat the desktop signing slice (#8) as unblocked until 1–3 hold.
 
 ## Smoke debts (verify before stacking more on top)
 
+## M7.2 tooling sweep — in progress (2026-07-21)
+
+Status snapshot so a fresh session can resume from this file alone.
+Story #172; epic #67.
+
+**Gates** (run in the dev image against `main`):
+
+| Gate | Result |
+|---|---|
+| `make fmt-check` | ✅ |
+| `make clippy` (`--all-targets -D warnings`) | ✅ 0 warnings |
+| `make deny` | ✅ |
+| `make audit` | ❌ → ✅ via PR #234 |
+
+`cargo audit` flagged RUSTSEC-2026-0185 (quinn-proto 0.11.14, 7.5 high).
+Not reachable — `cargo tree -i quinn-proto --target all -e all` finds
+nothing, i.e. a stale lockfile entry from reqwest's optional HTTP/3
+path. Bumped to 0.11.15 anyway (PR #234) rather than leave a vulnerable
+version in a committed lockfile.
+
+> **Gotcha worth remembering:** `cargo deny` resolves the *feature
+> graph*, `cargo audit` scans the *whole lockfile*. They legitimately
+> disagree. A green `deny` is not a clean bill of health on its own —
+> #172's acceptance requires both.
+
+**#18 + #22 findings — 11 of 13 fully remediated.** Verified against the
+code, not assumed. Fixed: E1, E3, E4, E5, E6, E7, E8, M1, M2, M3, L1.
+Remaining:
+
+- **E2 (PARTIAL) — hash the tus upload token at rest.** Send *download*
+  tokens were fixed (`sends.rs` `hash_download_token()`, SHA-256 + DST,
+  `WHERE token_hash = $1`), but the attachment **upload** token is still
+  stored and matched in plaintext with SQL `=` in
+  `crates/hekate-server/src/routes/attachments.rs` (queries around lines
+  356, 400, 531, 554, 575, 673, 848). *Pick up:* mirror the Send fix —
+  hash at rest + constant-time compare. Needs a migration, so it's the
+  larger of the two remaining.
+- **H1 (PARTIAL) — Send `/blob` download token.** The memory-amplification
+  half is fixed (`public_blob_download` streams via `read_range` in 64 KiB
+  chunks, `sends.rs:1053-1123`). Still open, and acknowledged in the
+  fixing commit's own message: (1) the download token stays reusable for
+  its full 5-min TTL — no consume logic in `public_blob_download`, while
+  `max_access_count` is only enforced in the `/access` handler
+  (`sends.rs:570-582`); (2) `/blob` is still on the lenient limiter, not
+  the strict one (`rate_limit.rs:94-99`, and its own test at
+  `rate_limit.rs:213` asserts this). *Pick up:* single-use token +
+  strict-limiter path. Server-side only, no schema change — the smaller
+  chunk, good place to restart.
+- **M2 (cosmetic)** — `web_app.rs::placeholder_router()` (the
+  "SPA not built" fallback) doesn't carry the CSP/nosniff/frame-deny
+  headers the real SPA gets. No secrets on that page; one-line fix if
+  wanted.
+
+**Still owed for #172's acceptance:** `/code-review ultra` over the
+shipped surface — operator-triggered and billed, so it can't be run by
+an agent. `/security-review` is best pointed at a diff (it reviews
+pending branch changes), so run it per-PR rather than over all of `main`.
+
+**Note:** issues #18 and #22 are still **open** on GitHub even though
+most of their contents shipped; they read far more alarming than the
+code warrants. Worth closing or annotating.
+
+**In flight (all CI-green, unmerged as of 2026-07-21):** #30 desktop
+Touch ID (needs security review + signed-build smoke) · #233 docs
+reconciliation · #234 quinn-proto bump · #235 E6 mandatory-AAD fix.
+
 ## Queued work (with kickoff plans)
 
 - **DONE (PR open): #41 — password generator (standalone + options +
