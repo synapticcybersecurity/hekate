@@ -1061,14 +1061,12 @@ fn remove_member(org_id: &str, target_user_id: &str) -> Result<()> {
         let aad = hekate_core::org_roster::collection_name_aad(&c.id, &c.org_id);
         let parsed = EncString::parse(&c.name)
             .with_context(|| format!("parse collection name encstring for {}", c.id))?;
-        let name_bytes = parsed
-            .decrypt_xc20p(&old_org_sym_key, Some(&aad))
-            .map_err(|e| {
-                anyhow!(
-                    "failed to decrypt collection {} name under the old org sym key: {e}",
-                    c.id
-                )
-            })?;
+        let name_bytes = parsed.decrypt_xc20p(&old_org_sym_key, &aad).map_err(|e| {
+            anyhow!(
+                "failed to decrypt collection {} name under the old org sym key: {e}",
+                c.id
+            )
+        })?;
         let new_name = EncString::encrypt_xc20p("ok:1", &new_org_sym_key, &name_bytes, &aad)
             .map_err(|e| anyhow!("re-encrypt collection name for {}: {e}", c.id))?
             .to_wire();
@@ -1127,7 +1125,7 @@ pub(crate) fn unwrap_under_account_key(
 ) -> Result<[u8; 32]> {
     let s = EncString::parse(wire).with_context(|| format!("parse {label}"))?;
     let bytes = s
-        .decrypt_xc20p(account_key, Some(aad))
+        .decrypt_xc20p(account_key, aad)
         .map_err(|e| anyhow!("decrypt {label}: {e}"))?;
     if bytes.len() != 32 {
         return Err(anyhow!("{label} has wrong length"));
@@ -1305,7 +1303,7 @@ pub(crate) fn decrypt_collection_name(
     let s = EncString::parse(wire).context("malformed collection name")?;
     let aad = collection_name_aad(collection_id, org_id);
     let bytes = s
-        .decrypt_xc20p(org_sym_key, Some(&aad))
+        .decrypt_xc20p(org_sym_key, &aad)
         .map_err(|e| anyhow!("decrypt: {e}"))?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }

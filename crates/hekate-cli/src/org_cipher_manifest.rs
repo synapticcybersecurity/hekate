@@ -266,7 +266,7 @@ fn unwrap_signing_seed(account_key: &[u8; 32], wire: &str) -> Result<[u8; 32]> {
     let s = hekate_core::encstring::EncString::parse(wire)
         .context("parse owner_protected_signing_seed")?;
     let bytes = s
-        .decrypt_xc20p(account_key, Some(b"pmgr-org-signing-seed"))
+        .decrypt_xc20p(account_key, b"pmgr-org-signing-seed")
         .map_err(|e| anyhow!("decrypt org signing seed: {e}"))?;
     if bytes.len() != 32 {
         return Err(anyhow!("decrypted org signing seed has wrong length"));

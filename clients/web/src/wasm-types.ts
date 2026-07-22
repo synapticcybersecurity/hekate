@@ -142,11 +142,19 @@ export interface HekateCore {
   /** HKDF-Expand into the 32-byte stretched master key that wraps account_key. */
   deriveStretchedMasterKey(masterKey: Uint8Array): Uint8Array;
 
-  /** Decrypt EncString v3 (XChaCha20-Poly1305). AAD bytes optional. */
+  /**
+   * Decrypt EncString v3 (XChaCha20-Poly1305).
+   *
+   * `expectedAad` is REQUIRED — it is what binds the ciphertext to its
+   * context (cipher id, send id, ...). The AEAD tag is verified against the
+   * AAD carried inside the envelope, so without this comparison a substituted
+   * envelope wrapped under the same key would decrypt cleanly. Omitting it
+   * throws (finding E6, issue #18).
+   */
   encStringDecryptXc20p(
     wire: string,
     key: Uint8Array,
-    expectedAad?: Uint8Array,
+    expectedAad: Uint8Array,
   ): Uint8Array;
 
   /** Ed25519 signing seed (32 bytes) for the BW04 signed manifest path. */

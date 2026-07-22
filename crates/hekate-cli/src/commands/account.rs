@@ -112,7 +112,7 @@ fn change_password() -> Result<()> {
     // Decrypt the existing account key.
     let pak = EncString::parse(&st.account_material.protected_account_key)?;
     let bytes = pak
-        .decrypt_xc20p(&cur_smk, Some(AAD_PROTECTED_ACCOUNT_KEY))
+        .decrypt_xc20p(&cur_smk, AAD_PROTECTED_ACCOUNT_KEY)
         .map_err(|_| anyhow!("wrong current master password"))?;
     if bytes.len() != 32 {
         return Err(anyhow!("decrypted account key has wrong length"));
@@ -230,7 +230,7 @@ fn rotate_keys() -> Result<()> {
     // Decrypt the existing account_key.
     let pak = EncString::parse(&st.account_material.protected_account_key)?;
     let bytes = pak
-        .decrypt_xc20p(&smk, Some(AAD_PROTECTED_ACCOUNT_KEY))
+        .decrypt_xc20p(&smk, AAD_PROTECTED_ACCOUNT_KEY)
         .map_err(|_| anyhow!("wrong master password"))?;
     if bytes.len() != 32 {
         return Err(anyhow!("decrypted account key has wrong length"));
@@ -256,14 +256,12 @@ fn rotate_keys() -> Result<()> {
         let aad = crate::crypto::aad_protected_cipher_key(&c.id);
         let parsed = EncString::parse(&c.protected_cipher_key)
             .with_context(|| format!("parse cipher {} PCK", c.id))?;
-        let pck_bytes = parsed
-            .decrypt_xc20p(&old_account_key, Some(&aad))
-            .map_err(|_| {
-                anyhow!(
-                    "could not decrypt PCK for cipher {} — server may have substituted the wrap",
-                    c.id
-                )
-            })?;
+        let pck_bytes = parsed.decrypt_xc20p(&old_account_key, &aad).map_err(|_| {
+            anyhow!(
+                "could not decrypt PCK for cipher {} — server may have substituted the wrap",
+                c.id
+            )
+        })?;
         let new_wire = EncString::encrypt_xc20p("ak:1", &new_account_key, &pck_bytes, &aad)
             .map_err(|e| anyhow!("re-wrap cipher {}: {e}", c.id))?
             .to_wire();
@@ -286,7 +284,7 @@ fn rotate_keys() -> Result<()> {
             let parsed_key = EncString::parse(&s.protected_send_key)
                 .with_context(|| format!("parse send {} key wrap", s.id))?;
             let send_key_bytes = parsed_key
-                .decrypt_xc20p(&old_account_key, Some(&key_aad))
+                .decrypt_xc20p(&old_account_key, &key_aad)
                 .map_err(|_| anyhow!("decrypt send_key"))?;
             let new_key_wire =
                 EncString::encrypt_xc20p("ak:1", &new_account_key, &send_key_bytes, &key_aad)?
@@ -296,7 +294,7 @@ fn rotate_keys() -> Result<()> {
             let parsed_name = EncString::parse(&s.name)
                 .with_context(|| format!("parse send {} name wrap", s.id))?;
             let name_bytes = parsed_name
-                .decrypt_xc20p(&old_account_key, Some(&name_aad))
+                .decrypt_xc20p(&old_account_key, &name_aad)
                 .map_err(|_| anyhow!("decrypt name"))?;
             let new_name_wire =
                 EncString::encrypt_xc20p("ak:1", &new_account_key, &name_bytes, &name_aad)?
@@ -337,7 +335,7 @@ fn rotate_keys() -> Result<()> {
         // (AAD_PROTECTED_ACCOUNT_KEY). Keeping symmetry so the server
         // round-trip works against the existing read path.
         let sym_key_bytes = parsed
-            .decrypt_xc20p(&old_account_key, Some(AAD_PROTECTED_ACCOUNT_KEY))
+            .decrypt_xc20p(&old_account_key, AAD_PROTECTED_ACCOUNT_KEY)
             .map_err(|_| anyhow!("could not decrypt org_sym_key for org {}", o.org_id))?;
         let new_wire = EncString::encrypt_xc20p(
             "ak:1",
@@ -359,7 +357,7 @@ fn rotate_keys() -> Result<()> {
     let parsed = EncString::parse(&st.account_material.protected_account_private_key)
         .context("parse stored protected_account_private_key")?;
     let priv_bytes = parsed
-        .decrypt_xc20p(&old_account_key, Some(b"pmgr-account-x25519-priv"))
+        .decrypt_xc20p(&old_account_key, b"pmgr-account-x25519-priv")
         .map_err(|_| anyhow!("could not decrypt account private key"))?;
     let new_protected_priv = EncString::encrypt_xc20p(
         "ak:1",
