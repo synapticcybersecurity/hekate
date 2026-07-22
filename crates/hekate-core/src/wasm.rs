@@ -194,17 +194,29 @@ pub fn encstring_encrypt_xc20p(
         .map_err(js_err)
 }
 
-/// XChaCha20-Poly1305 decrypt + verify. Pass `null`/`undefined` for
-/// `expected_aad` to accept any AAD value embedded in the envelope.
+/// XChaCha20-Poly1305 decrypt + verify. `expected_aad` is **required** — it is
+/// what binds the ciphertext to its context, so omitting it would silently drop
+/// the substitution defense (finding E6, issue #18).
+///
+/// The parameter stays `Option<Vec<u8>>` at the wasm ABI purely so a JS caller
+/// that passes `null`/`undefined` gets this explicit error instead of a
+/// TypeError out of the generated glue. Callers must pass real AAD bytes.
 #[wasm_bindgen(js_name = encStringDecryptXc20p)]
 pub fn encstring_decrypt_xc20p(
     wire: &str,
     key: &[u8],
     expected_aad: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, JsValue> {
+    let Some(aad) = expected_aad else {
+        return Err(JsValue::from_str(
+            "encStringDecryptXc20p: expected_aad is required (it binds the \
+             ciphertext to its context; omitting it would accept a substituted \
+             envelope)",
+        ));
+    };
     let k = key32(key)?;
     let s = EncString::parse(wire).map_err(js_err)?;
-    s.decrypt_xc20p(&k, expected_aad.as_deref()).map_err(js_err)
+    s.decrypt_xc20p(&k, &aad).map_err(js_err)
 }
 
 /// X25519 keypair. `secret` and `public` are both 32 bytes.

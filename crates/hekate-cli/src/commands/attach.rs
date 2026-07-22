@@ -248,11 +248,9 @@ fn run_download(args: DownloadArgs) -> Result<()> {
     let wrap_aad = att_key_wrap_aad(&view.id, &view.cipher_id);
     let parsed = EncString::parse(&view.content_key)
         .context("malformed content_key on server-returned attachment view")?;
-    let att_key_bytes = parsed
-        .decrypt_xc20p(&cipher_key, Some(&wrap_aad))
-        .map_err(|_| {
-            anyhow!("could not unwrap attachment key — wrong cipher key or tampered AAD")
-        })?;
+    let att_key_bytes = parsed.decrypt_xc20p(&cipher_key, &wrap_aad).map_err(|_| {
+        anyhow!("could not unwrap attachment key — wrong cipher key or tampered AAD")
+    })?;
     if att_key_bytes.len() != 32 {
         return Err(anyhow!("unwrapped attachment key has wrong length"));
     }

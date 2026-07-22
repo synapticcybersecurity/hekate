@@ -108,18 +108,33 @@ impl EncString {
         })
     }
 
-    /// Decrypt and verify. Caller-provided `expected_aad` MUST equal the AAD
-    /// that was bound at encrypt time, otherwise this returns `Error::Crypto`.
-    /// Passing `None` accepts any AAD value embedded in the envelope (use only
-    /// when the AAD is structurally implicit and not security-bearing).
-    pub fn decrypt_xc20p(&self, key: &[u8; 32], expected_aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    /// Decrypt and verify. `expected_aad` MUST equal the AAD that was bound at
+    /// encrypt time, otherwise this returns `Error::Crypto`.
+    ///
+    /// **The AAD is mandatory, and that is load-bearing.** The Poly1305 tag is
+    /// verified against `self.aad` — the AAD carried *inside the envelope* —
+    /// so the tag alone proves only that the envelope is internally consistent,
+    /// not that it is the envelope the caller asked for. Comparing the caller's
+    /// `expected_aad` against the embedded value is the *only* thing binding a
+    /// ciphertext to its context. Without it, a server that swaps one envelope
+    /// for another wrapped under the same key (cipher A's key for cipher B's,
+    /// one Send's payload for another's) would decrypt cleanly.
+    ///
+    /// This is why there is no "skip the AAD check" variant: an earlier API
+    /// took `Option<&[u8]>` and treated `None` as "accept any AAD", which is a
+    /// silent removal of the substitution defense (finding E6, issue #18). If
+    /// you ever genuinely need to decrypt without a context binding, add a
+    /// separate, explicitly-named method and get it reviewed — do not widen
+    /// this one.
+    ///
+    /// The comparison is deliberately variable-time: AAD values are public
+    /// context labels (cipher ids, send ids), not secrets.
+    pub fn decrypt_xc20p(&self, key: &[u8; 32], expected_aad: &[u8]) -> Result<Vec<u8>> {
         if self.alg != Alg::XChaCha20Poly1305 {
             return Err(Error::InvalidEncString("alg mismatch"));
         }
-        if let Some(want) = expected_aad {
-            if want != self.aad.as_slice() {
-                return Err(Error::Crypto);
-            }
+        if expected_aad != self.aad.as_slice() {
+            return Err(Error::Crypto);
         }
         if self.nonce.len() != 24 || self.tag.len() != 16 {
             return Err(Error::InvalidEncString("bad nonce/tag length"));
@@ -238,7 +253,7 @@ mod tests {
         let pt = b"the quick brown fox jumps over the lazy dog";
         let aad = b"cipher:abc:field:password";
         let e = EncString::encrypt_xc20p("kid", &key(), pt, aad).unwrap();
-        let dec = e.decrypt_xc20p(&key(), Some(aad)).unwrap();
+        let dec = e.decrypt_xc20p(&key(), aad).unwrap();
         assert_eq!(dec, pt);
     }
 
@@ -249,14 +264,14 @@ mod tests {
         let e = EncString::encrypt_xc20p("kid", &key(), pt, aad).unwrap();
         let s = e.to_wire();
         let parsed = EncString::parse(&s).unwrap();
-        let dec = parsed.decrypt_xc20p(&key(), Some(aad)).unwrap();
+        let dec = parsed.decrypt_xc20p(&key(), aad).unwrap();
         assert_eq!(dec, pt);
     }
 
     #[test]
     fn aad_mismatch_fails() {
         let e = EncString::encrypt_xc20p("kid", &key(), b"x", b"correct").unwrap();
-        let r = e.decrypt_xc20p(&key(), Some(b"wrong"));
+        let r = e.decrypt_xc20p(&key(), b"wrong");
         assert!(matches!(r, Err(Error::Crypto)));
     }
 
@@ -265,7 +280,7 @@ mod tests {
         let mut e = EncString::encrypt_xc20p("kid", &key(), b"hello", b"aad").unwrap();
         e.ct[0] ^= 0xff;
         assert!(matches!(
-            e.decrypt_xc20p(&key(), Some(b"aad")),
+            e.decrypt_xc20p(&key(), b"aad"),
             Err(Error::Crypto)
         ));
     }
@@ -275,7 +290,7 @@ mod tests {
         let mut e = EncString::encrypt_xc20p("kid", &key(), b"hello", b"aad").unwrap();
         e.tag[0] ^= 0x01;
         assert!(matches!(
-            e.decrypt_xc20p(&key(), Some(b"aad")),
+            e.decrypt_xc20p(&key(), b"aad"),
             Err(Error::Crypto)
         ));
     }
@@ -286,9 +301,35 @@ mod tests {
         // catch it because the original AAD was bound at encrypt time.
         let mut e = EncString::encrypt_xc20p("kid", &key(), b"hello", b"aad-A").unwrap();
         e.aad = b"aad-B".to_vec();
-        // Even passing None (don't validate against expected) the AEAD itself
-        // rejects the tampered AAD.
-        assert!(matches!(e.decrypt_xc20p(&key(), None), Err(Error::Crypto)));
+        // Ask for the *tampered* value, so the caller-vs-envelope comparison
+        // passes and the AEAD is the only thing left to catch it. This is the
+        // deeper layer: even an attacker who rewrites both the envelope AAD and
+        // the caller's expectation cannot forge the tag.
+        assert!(matches!(
+            e.decrypt_xc20p(&key(), b"aad-B"),
+            Err(Error::Crypto)
+        ));
+    }
+
+    #[test]
+    fn cross_context_substitution_fails_closed() {
+        // The E6 regression test (issue #18). Two envelopes wrapped under the
+        // SAME key but bound to different contexts — exactly the shape of two
+        // per-cipher keys wrapped under one account key. A malicious server
+        // serving envelope B where the client asked for A must fail closed.
+        let aad_a = b"pmgr-cipher-key-v2:cipher-A";
+        let aad_b = b"pmgr-cipher-key-v2:cipher-B";
+        let a = EncString::encrypt_xc20p("kid", &key(), b"secret-A", aad_a).unwrap();
+        let b = EncString::encrypt_xc20p("kid", &key(), b"secret-B", aad_b).unwrap();
+
+        // Each opens under its own context.
+        assert_eq!(a.decrypt_xc20p(&key(), aad_a).unwrap(), b"secret-A");
+        assert_eq!(b.decrypt_xc20p(&key(), aad_b).unwrap(), b"secret-B");
+
+        // Substituting B for A is rejected — the property that would have been
+        // silently lost if a caller could opt out of the AAD check.
+        assert!(matches!(b.decrypt_xc20p(&key(), aad_a), Err(Error::Crypto)));
+        assert!(matches!(a.decrypt_xc20p(&key(), aad_b), Err(Error::Crypto)));
     }
 
     #[test]
@@ -297,7 +338,7 @@ mod tests {
         let mut other = key();
         other[0] ^= 0xff;
         assert!(matches!(
-            e.decrypt_xc20p(&other, Some(b"aad")),
+            e.decrypt_xc20p(&other, b"aad"),
             Err(Error::Crypto)
         ));
     }
@@ -311,13 +352,12 @@ mod tests {
         let e =
             EncString::encrypt_xc20p("kid", &key(), b"secret", b"pmgr-cipher-key-v2:X").unwrap();
         assert!(matches!(
-            e.decrypt_xc20p(&key(), Some(b"pmgr-cipher-key-v2:Y")),
+            e.decrypt_xc20p(&key(), b"pmgr-cipher-key-v2:Y"),
             Err(Error::Crypto)
         ));
         // The correct expected AAD still decrypts.
         assert_eq!(
-            e.decrypt_xc20p(&key(), Some(b"pmgr-cipher-key-v2:X"))
-                .unwrap(),
+            e.decrypt_xc20p(&key(), b"pmgr-cipher-key-v2:X").unwrap(),
             b"secret"
         );
     }

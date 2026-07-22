@@ -441,7 +441,7 @@ fn run_list() -> Result<()> {
             let aad = name_aad(&s.id);
             let name = match EncString::parse(&s.name) {
                 Ok(es) => es
-                    .decrypt_xc20p(&unlocked.account_key, Some(&aad))
+                    .decrypt_xc20p(&unlocked.account_key, &aad)
                     .ok()
                     .and_then(|b| String::from_utf8(b).ok())
                     .unwrap_or_else(|| "<undecryptable>".into()),

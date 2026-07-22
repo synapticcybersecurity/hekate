@@ -122,7 +122,7 @@ pub fn unlock(state: &State, password: &str) -> Result<Unlocked> {
     let pak = EncString::parse(&state.account_material.protected_account_key)
         .context("state file's protected_account_key is malformed")?;
     let bytes = pak
-        .decrypt_xc20p(&smk, Some(AAD_PROTECTED_ACCOUNT_KEY))
+        .decrypt_xc20p(&smk, AAD_PROTECTED_ACCOUNT_KEY)
         .map_err(|_| anyhow!("wrong master password"))?;
     if bytes.len() != 32 {
         return Err(anyhow!("decrypted account key has wrong length"));
@@ -177,7 +177,7 @@ pub fn unwrap_cipher_key_under(
 ) -> Result<Zeroizing<[u8; 32]>> {
     let s = EncString::parse(wire).context("malformed protected_cipher_key")?;
     let aad = aad_protected_cipher_key(cipher_id);
-    let bytes = s.decrypt_xc20p(wrap_key, Some(&aad)).map_err(|_| {
+    let bytes = s.decrypt_xc20p(wrap_key, &aad).map_err(|_| {
         anyhow!(
             "could not decrypt cipher key — server may have substituted \
              the wrap or the row id (BW04/LP06 mitigation tripped)"
@@ -199,7 +199,7 @@ pub fn encrypt_field(cipher_key: &[u8; 32], plaintext: &[u8], aad: &[u8]) -> Res
 
 pub fn decrypt_field(cipher_key: &[u8; 32], wire: &str, aad: &[u8]) -> Result<Vec<u8>> {
     let s = EncString::parse(wire).context("malformed cipher field")?;
-    s.decrypt_xc20p(cipher_key, Some(aad))
+    s.decrypt_xc20p(cipher_key, aad)
         .map_err(|e| anyhow!("decrypt: {e}"))
 }
 

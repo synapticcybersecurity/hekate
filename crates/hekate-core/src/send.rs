@@ -146,7 +146,7 @@ pub fn decrypt_text(send_key: &SendKey, send_id: &str, wire: &str) -> Result<Vec
     let parsed = EncString::parse(wire)?;
     let aad = data_aad(send_id, SEND_TYPE_TEXT);
     parsed
-        .decrypt_xc20p(&content_key, Some(&aad))
+        .decrypt_xc20p(&content_key, &aad)
         .map_err(|_| Error::Crypto)
 }
 

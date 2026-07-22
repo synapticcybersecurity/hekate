@@ -336,7 +336,7 @@ fn decode_pubkey_b64(b64: &str) -> Result<[u8; 32]> {
 fn decrypt_x25519_priv(account_key: &[u8; 32], wire: &str) -> Result<[u8; 32]> {
     let s = EncString::parse(wire).context("malformed protected_account_private_key")?;
     let bytes = s
-        .decrypt_xc20p(account_key, Some(b"pmgr-account-x25519-priv"))
+        .decrypt_xc20p(account_key, b"pmgr-account-x25519-priv")
         .map_err(|e| anyhow!("decrypt account x25519 priv: {e}"))?;
     if bytes.len() != 32 {
         return Err(anyhow!("account x25519 priv has wrong length"));
