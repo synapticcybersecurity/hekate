@@ -127,10 +127,26 @@ Apple Developer account):
 
 **4. Build:**
   ```sh
-  make desktop-release   # builds the SPA, then signs + notarizes + staples
+  make desktop-notary-check   # ~2s: probes the LIVE notary service — run this first
+  make desktop-release        # builds the SPA, then signs + notarizes + staples
   ```
-  `make desktop-sign-check` runs first and fails fast if the cert or any of
-  the env vars is missing.
+  `make desktop-release` runs two preflights before the (slow) build:
+  `desktop-sign-check` verifies the cert and env vars *exist*, and
+  `desktop-notary-check` makes a real authenticated call to Apple's notary
+  service (`xcrun notarytool history`) to confirm the credentials work **and
+  the Program License Agreement is in effect**. The env-presence check alone
+  is not enough — an expired/unsigned agreement returns HTTP 403 *"A required
+  agreement is missing or has expired"* only when you actually contact Apple,
+  which otherwise happens at the very end of a full build. If you hit that
+  403: sign in as the **Account Holder** at
+  <https://developer.apple.com/account>, accept any pending agreement (also
+  check App Store Connect → Business), then re-run `make desktop-notary-check`.
+
+  > For a **local Touch ID / biometric smoke** you don't need notarization at
+  > all — biometrics key off the code *signature*, not Gatekeeper. Use
+  > `make desktop-build` (signs, skips notarization) and right-click → Open
+  > the `.app` the first time. Notarization only matters for distributing to
+  > other machines.
 
 **5. Verify** (output under `src-tauri/target/release/bundle/`):
   ```sh

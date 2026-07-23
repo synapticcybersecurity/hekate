@@ -249,8 +249,27 @@ desktop-sign-check: ## Verify Developer ID cert + notarization env are present (
 	@test -n "$$APPLE_API_ISSUER" && test -n "$$APPLE_API_KEY" && test -n "$$APPLE_API_KEY_PATH" || { echo "ERROR: notarization env missing — set APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_PATH (App Store Connect API key) — see clients/desktop/README.md."; exit 1; }
 	@test -f "$$APPLE_API_KEY_PATH" || { echo "ERROR: APPLE_API_KEY_PATH ($$APPLE_API_KEY_PATH) is not a file."; exit 1; }
 
+.PHONY: desktop-notary-check
+desktop-notary-check: desktop-sign-check ## Probe the LIVE notarization service (catches expired agreements before a full build)
+	@echo "Probing the notarization service (xcrun notarytool history)..."
+	@out=$$(xcrun notarytool history --key "$$APPLE_API_KEY_PATH" --key-id "$$APPLE_API_KEY" --issuer "$$APPLE_API_ISSUER" 2>&1); \
+		status=$$?; \
+		if [ $$status -ne 0 ]; then \
+			echo "$$out"; \
+			echo ""; \
+			echo "ERROR: notarytool could not reach Apple's notary service with these credentials."; \
+			case "$$out" in \
+				*"agreement"*|*"403"*) echo "  -> HTTP 403 / agreement problem: the Account Holder must re-accept the Apple Developer"; \
+					echo "     Program License Agreement at https://developer.apple.com/account (and check"; \
+					echo "     App Store Connect -> Business), then re-run 'make desktop-notary-check'.";; \
+				*) echo "  -> Check the API key (APPLE_API_KEY / _ISSUER / _KEY_PATH) and network — see clients/desktop/README.md.";; \
+			esac; \
+			exit 1; \
+		fi; \
+		echo "  OK — notary service reachable and the agreement is in effect."
+
 .PHONY: desktop-release
-desktop-release: web desktop-check desktop-sign-check ## Build a SIGNED + NOTARIZED + STAPLED macOS .app/.dmg (host; needs Apple creds — see clients/desktop/README.md)
+desktop-release: web desktop-check desktop-notary-check ## Build a SIGNED + NOTARIZED + STAPLED macOS .app/.dmg (host; needs Apple creds — see clients/desktop/README.md)
 	cd $(DESKTOP_DIR) && cargo tauri build
 	@echo "Notarizing + stapling the .dmg (Tauri notarizes the .app but not the disk image)..."
 	@dmg=$$(ls -t $(DESKTOP_DIR)/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1); \

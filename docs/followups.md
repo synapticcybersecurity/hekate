@@ -136,12 +136,23 @@ reconciliation · #234 quinn-proto bump · #235 E6 mandatory-AAD fix.
   replacing the no-op `window.confirm/alert/prompt`, macOS-padded app
   icon); **in-app "change server"** in Settings (#227 / story E3.4 #144).
 
-  **Signing is configured** (2026-07-21): Developer ID Application cert
-  for Synaptic Cybersecurity Alliance, Inc. (`PKKD5DLS7L`) is in the
-  keychain and all four notarization env vars are set —
-  `make desktop-sign-check` passes, so `make desktop-release` can produce
-  a signed + notarized build on demand. *Producing* one is unblocked;
-  *publishing* one is still behind the pre-publish security gate above.
+  **Signing works; notarization is blocked on an Apple agreement**
+  (2026-07-21). The Developer ID Application cert for Synaptic
+  Cybersecurity Alliance, Inc. (`PKKD5DLS7L`) is in the keychain and all
+  four notarization env vars are set; a `make desktop-release` signed the
+  `.app` cleanly. But the notarytool submit then failed **HTTP 403 "A
+  required agreement is missing or has expired."** The Account Holder must
+  re-accept the Apple Developer Program License Agreement at
+  developer.apple.com/account (and check App Store Connect → Business)
+  before Apple will notarize — an account-portal action, not a code/config
+  change. `make desktop-sign-check` passing is **not** sufficient proof
+  notarization will work: it only checks that creds *exist*, not that the
+  agreement is in effect (that gap is what let this bite after a full
+  build; `desktop-notary-check` now probes the live agreement — run it
+  first). For local Touch ID smoke a signed-but-not-notarized build
+  (`make desktop-build`) is enough — notarization only affects Gatekeeper
+  trust on *other* machines. *Publishing* is still separately behind the
+  pre-publish security gate above.
 
   **Next slices, in order:**
     1. **Touch ID unlock** (tier A) — **decisions locked; code complete on
@@ -429,12 +440,16 @@ These don't surface to end users but block all of the above:
 
 - [x] **Apple Developer account** ($99/year) — acquired 2026-05-30.
       Required for macOS notarization, iOS App Store, Mac App Store,
-      Safari Extension. **Wired into the desktop build as of 2026-07-21**:
-      Developer ID Application cert (`PKKD5DLS7L`) in the keychain +
-      App Store Connect API key and the four `APPLE_*` env vars set, so
-      `make desktop-sign-check` passes and `make desktop-release` can
-      sign + notarize + staple. Ongoing key-custody discipline still
-      applies (HSM-backed custody is still open, below).
+      Safari Extension. **Signing wired in as of 2026-07-21**: Developer ID
+      Application cert (`PKKD5DLS7L`) in the keychain + App Store Connect
+      API key and the four `APPLE_*` env vars set; `make desktop-release`
+      signs the `.app` cleanly. **Notarization is blocked** on an
+      Account-Holder Program License Agreement that Apple reports as
+      missing/expired (notarytool 403 on 2026-07-21) — re-accept at
+      developer.apple.com/account + App Store Connect → Business, then
+      re-run `make desktop-notary-check` to confirm before rebuilding.
+      Ongoing key-custody discipline still applies (HSM-backed custody is
+      still open, below).
 - [ ] **Windows EV code-signing certificate** (~$300–400/year) —
       required for SmartScreen reputation; without it, every
       Windows install gets a "Windows protected your PC" warning.
