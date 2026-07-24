@@ -3,11 +3,13 @@
 //! Two `governor`-backed token-bucket limiters share the request path:
 //!
 //!   * **Auth** (strict): 10 req/min, burst 3 — applied to login,
-//!     register, prelogin, the public Send password gate, and the 2FA
-//!     challenge replay leg. These endpoints either run Argon2id
-//!     server-side (cheap-attack-by-design) or expose
-//!     low-entropy probes (existence checks, recovery codes) and
-//!     deserve tight per-IP caps.
+//!     register, prelogin, the public Send password gate, the 2FA
+//!     challenge replay leg, and the anonymous Send `/blob` download
+//!     (H1, issue #22). These endpoints either run Argon2id
+//!     server-side (cheap-attack-by-design), expose low-entropy probes
+//!     (existence checks, recovery codes), or serve unauthenticated
+//!     file bytes (a bandwidth/DoS vector) — all deserve tight per-IP
+//!     caps.
 //!   * **General** (lenient): 600 req/min, burst 50 — applied to
 //!     everything else as a backstop against runaway clients.
 //!
@@ -95,7 +97,8 @@ fn is_auth_path(path: &str) -> bool {
     matches!(
         path,
         "/identity/connect/token" | "/api/v1/accounts/register" | "/api/v1/accounts/prelogin"
-    ) || (path.starts_with("/api/v1/public/sends/") && path.ends_with("/access"))
+    ) || (path.starts_with("/api/v1/public/sends/")
+        && (path.ends_with("/access") || path.contains("/blob/")))
 }
 
 /// Extract the client IP per the configured proxy-trust posture.
@@ -209,8 +212,9 @@ mod tests {
         assert!(is_auth_path("/api/v1/accounts/register"));
         assert!(is_auth_path("/api/v1/accounts/prelogin"));
         assert!(is_auth_path("/api/v1/public/sends/abc-123/access"));
+        // H1 (issue #22): the anonymous blob download is strict-bucketed.
+        assert!(is_auth_path("/api/v1/public/sends/abc-123/blob/tok"));
         assert!(!is_auth_path("/api/v1/sync"));
-        assert!(!is_auth_path("/api/v1/public/sends/abc-123/blob/tok"));
         assert!(!is_auth_path("/api/v1/accounts/register/anything"));
     }
 

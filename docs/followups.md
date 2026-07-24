@@ -55,8 +55,8 @@ version in a committed lockfile.
 > disagree. A green `deny` is not a clean bill of health on its own —
 > #172's acceptance requires both.
 
-**#18 + #22 findings — 11 of 13 fully remediated.** Verified against the
-code, not assumed. Fixed: E1, E3, E4, E5, E6, E7, E8, M1, M2, M3, L1.
+**#18 + #22 findings — 12 of 13 fully remediated.** Verified against the
+code, not assumed. Fixed: E1, E3, E4, E5, E6, E7, E8, H1, M1, M2, M3, L1.
 Remaining:
 
 - **E2 (PARTIAL) — hash the tus upload token at rest.** Send *download*
@@ -67,17 +67,27 @@ Remaining:
   356, 400, 531, 554, 575, 673, 848). *Pick up:* mirror the Send fix —
   hash at rest + constant-time compare. Needs a migration, so it's the
   larger of the two remaining.
-- **H1 (PARTIAL) — Send `/blob` download token.** The memory-amplification
-  half is fixed (`public_blob_download` streams via `read_range` in 64 KiB
-  chunks, `sends.rs:1053-1123`). Still open, and acknowledged in the
-  fixing commit's own message: (1) the download token stays reusable for
-  its full 5-min TTL — no consume logic in `public_blob_download`, while
-  `max_access_count` is only enforced in the `/access` handler
-  (`sends.rs:570-582`); (2) `/blob` is still on the lenient limiter, not
-  the strict one (`rate_limit.rs:94-99`, and its own test at
-  `rate_limit.rs:213` asserts this). *Pick up:* single-use token +
-  strict-limiter path. Server-side only, no schema change — the smaller
-  chunk, good place to restart.
+- **H1 (DONE) — Send `/blob` download token** (PR for #22, 2026-07-24).
+  All three sub-issues closed, server-side only, no schema change:
+  1. *Memory-amplification* (fixed earlier) — `public_blob_download`
+     streams via `read_range` in 64 KiB chunks.
+  2. *Single-use token* — the token is now consumed atomically on entry
+     with `DELETE FROM send_download_tokens ... RETURNING expires_at`
+     (one statement, so concurrent requests can't both win; the loser
+     matches 0 rows → 404). **Consume-on-start**, chosen over
+     consume-on-success: race-free and simple, and a mid-stream failure
+     is recoverable by re-calling `/access` for a fresh token (bounded by
+     `max_access_count`). Verified `DELETE ... RETURNING` on both
+     backends (SQLite 3.46 bundled ≥ the 3.35 floor; Postgres native).
+  3. *Strict limiter* — `is_auth_path()` now matches the `/blob/` path,
+     so anonymous downloads use the strict bucket; the unit test that
+     asserted the opposite was flipped.
+  Coverage: `file_send_blob_download_token_is_single_use`
+  (succeeds once → 404 on reuse → fresh `/access` works) in
+  `tests/sends.rs`; `rate_limit::tests::auth_path_classifier` updated.
+  *Residual:* none for H1. (The token stays plaintext-in-transit in the
+  URL path — inherent to an anonymous link-based download, already
+  hashed at rest per E2.)
 - **M2 (cosmetic)** — `web_app.rs::placeholder_router()` (the
   "SPA not built" fallback) doesn't carry the CSP/nosniff/frame-deny
   headers the real SPA gets. No secrets on that page; one-line fix if

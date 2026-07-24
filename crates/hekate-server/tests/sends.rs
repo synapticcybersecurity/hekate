@@ -736,6 +736,112 @@ async fn file_send_full_upload_then_anonymous_download_round_trip() {
     assert_eq!(pt, plaintext);
 }
 
+/// H1 (issue #22): a download token is single-use. The first `/blob` GET
+/// succeeds and returns the file; a second GET with the SAME token is
+/// rejected (404), because the handler consumes the token on entry via
+/// `DELETE ... RETURNING`. A fresh `/access` mints a new token that works
+/// again (subject to `max_access_count`).
+#[tokio::test]
+async fn file_send_blob_download_token_is_single_use() {
+    let app = test_app().await;
+    register(&app, "alice@x.test").await;
+    let token = login(&app, "alice@x.test").await;
+
+    let plaintext = b"single-use body".repeat(1024);
+    let (create_body, id, _file_aead_key, ciphertext) = prepare_file_send_create_body(
+        "doc.txt",
+        &plaintext,
+        &(Utc::now() + Duration::days(1)).to_rfc3339(),
+    );
+    app.clone()
+        .oneshot(req("POST", "/api/v1/sends", &token, Some(&create_body)))
+        .await
+        .unwrap();
+
+    // Upload the body.
+    let hash = content_hash_b3(&ciphertext);
+    let meta = upload_metadata(&[
+        ("content_hash_b3", &hash),
+        ("size_pt", &plaintext.len().to_string()),
+    ]);
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/api/v1/sends/{}/upload", id))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header("Tus-Resumable", "1.0.0")
+                .header("Upload-Length", ciphertext.len().to_string())
+                .header("Upload-Metadata", meta)
+                .body(Body::from(ciphertext.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Helper: /access -> plaintext download token.
+    async fn mint_token(app: &Router, id: &str) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::post(format!("/api/v1/public/sends/{}/access", id))
+                    .header("content-type", "application/json")
+                    .body(Body::from(json!({}).to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        body_json(resp).await["download_token"]
+            .as_str()
+            .expect("download_token")
+            .to_string()
+    }
+
+    let dl_token = mint_token(&app, &id).await;
+
+    // First use succeeds and returns the file.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/api/v1/public/sends/{}/blob/{}", id, dl_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let downloaded = to_bytes(resp.into_body(), 1 << 24).await.unwrap();
+    assert_eq!(&downloaded[..], &ciphertext[..]);
+
+    // Second use of the SAME token is rejected — the token was consumed.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/api/v1/public/sends/{}/blob/{}", id, dl_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    // A fresh /access mints a new, working token — single-use, not
+    // one-download-ever (bounded by max_access_count, unset here).
+    let dl_token2 = mint_token(&app, &id).await;
+    assert_ne!(dl_token, dl_token2);
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/api/v1/public/sends/{}/blob/{}", id, dl_token2))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 #[tokio::test]
 async fn file_send_blob_endpoint_rejects_unknown_token() {
     let app = test_app().await;

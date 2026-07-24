@@ -1056,18 +1056,27 @@ async fn public_blob_download(
 ) -> Result<Response, ApiError> {
     // E2 (issue #18): look up by the token hash, never the plaintext.
     let token_hash = hash_download_token(&token);
-    let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT t.expires_at, s.storage_key
-         FROM send_download_tokens t
-         JOIN sends s ON s.id = t.send_id
-         WHERE t.token_hash = $1 AND t.send_id = $2 AND s.body_status = 1",
+    // H1 (issue #22): the download token is SINGLE-USE. Consume it
+    // atomically on entry with `DELETE ... RETURNING` — one statement, so
+    // two concurrent requests can't both claim the same token (the loser's
+    // DELETE matches 0 rows and returns None). This is consume-on-start:
+    // simple and race-free. The tradeoff is that a download failing
+    // mid-stream burns the token; the recipient recovers by calling
+    // `/access` again for a fresh token, bounded by the send's
+    // `max_access_count`. DELETE ... RETURNING is supported on both
+    // backends we run over AnyPool (SQLite >= 3.35 — we bundle 3.46 — and
+    // Postgres native).
+    let deleted: Option<(String,)> = sqlx::query_as(
+        "DELETE FROM send_download_tokens
+         WHERE token_hash = $1 AND send_id = $2
+         RETURNING expires_at",
     )
     .bind(&token_hash)
     .bind(&id)
     .fetch_optional(state.db.pool())
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
-    let Some((expires_at, storage_key)) = row else {
+    let Some((expires_at,)) = deleted else {
         return Err(ApiError::not_found("download token invalid"));
     };
     if let Ok(dt) = DateTime::parse_from_rfc3339(&expires_at) {
@@ -1075,12 +1084,23 @@ async fn public_blob_download(
             return Err(gone("download token has expired — request a new /access"));
         }
     }
-    // H1 (issue #22): stream the blob in bounded chunks rather than
-    // buffering the whole file into RAM. This endpoint is anonymous and
-    // the token is reusable within its TTL, so a full-file read let an
-    // attacker pin up to `max_attachment_bytes` (default 100 MiB) resident
-    // per in-flight request — a memory-amplification DoS. Streaming caps
-    // per-request memory at one chunk.
+    // Token consumed and unexpired; resolve the blob to stream. The body
+    // must still be finalized (body_status = 1).
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT storage_key FROM sends WHERE id = $1 AND body_status = 1")
+            .bind(&id)
+            .fetch_optional(state.db.pool())
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let Some((storage_key,)) = row else {
+        return Err(ApiError::not_found("download token invalid"));
+    };
+    // Stream the blob in bounded chunks rather than buffering the whole
+    // file into RAM (also H1). This endpoint is anonymous, so a full-file
+    // read would let an attacker pin up to `max_attachment_bytes`
+    // (default 100 MiB) resident per in-flight request — a
+    // memory-amplification DoS. Streaming caps per-request memory at one
+    // chunk.
     let total = state
         .blob
         .len(&storage_key)
