@@ -166,14 +166,44 @@ reconciliation · #234 quinn-proto bump · #235 E6 mandatory-AAD fix.
 
   **Next slices, in order:**
     1. **Touch ID unlock** (tier A) — **decisions locked; code complete on
-       PR #30** (rebased onto main 2026-07-21, all five CI checks green).
+       PR #30** (rebased onto main 2026-08-24; CI re-runs on the push).
        Design: [`desktop-touch-id.md`](desktop-touch-id.md). A random
        32-byte unlock key in a `.biometryCurrentSet` Keychain item wraps
        the master key; adds the app's first four custom IPC commands (both
        flagged in `secure-coding.md` §8 as review-required). **Where to
        pick up:** security review of the branch + a biometric smoke against
-       a *signed* build (`make desktop-release` — biometrics don't work in
-       an unsigned `cargo tauri dev` binary), then merge.
+       a *signed* build, then merge. Use `make desktop-build` for the smoke:
+       biometrics key off the code *signature*, not Gatekeeper, so the
+       notarization block above does not gate it (an unsigned `cargo tauri
+       dev` binary will not work).
+       - **Fixed on pick-up (2026-08-24):** `hekate_bio_enable` decoded the
+         master key with Swift's strict `Data(base64Encoded:)`, but the SPA
+         sends it through `b64encode`, which strips `=` padding — so *every*
+         enrollment failed with `errBadBase64` (-2001), making the feature
+         unusable rather than flaky. Now decoded through a padding-tolerant
+         helper. The unlock return path was checked and needs no change
+         (Swift emits padded output; the JS `b64decode` tolerates padding).
+       - **Follow-up — no test harness for the Swift helper.**
+         `swift-lib/biometric.swift` has no automated coverage at all:
+         `build.rs` shells out to `swiftc` directly (no SwiftPM, no test
+         target), so `make test` never exercises it — which is how the
+         base64 bug above sat undetected behind five green CI checks. The
+         pure logic (`decodeBase64Tolerant`, and the AES-GCM wrap/unwrap
+         round trip) is testable without a Keychain or biometric hardware.
+         *Pick up:* add a SwiftPM test target alongside the helper and wire
+         `swift test` into CI; the Keychain-touching paths stay manual-smoke.
+       - **Follow-up — key material in unzeroable Swift `String`s.**
+         `hekate_bio_enable` materializes the base64 master key as a Swift
+         `String` (`String(cString:)`), and `decodeBase64Tolerant` adds two
+         or three more transient copies via `replacingOccurrences` / `+=`.
+         Swift `String`s cannot be reliably zeroed, so each copy is left to
+         the allocator — against the "don't leave plaintext copies behind
+         reallocations" rule in `secure-coding.md`. Pre-existing (the
+         `String(cString:)` copy predates the base64 fix) and only
+         marginally widened by it, so not a merge blocker. *Pick up:* carry
+         the key as `[UInt8]` from the C pointer through to `Data` without
+         ever building a `String`, and zero the buffer after sealing. The
+         Rust side already zeroizes its copy.
     2. **Auto-update** — Tauri built-in updater plugin + signed update
        manifest endpoint (needs a release channel first).
     3. **Windows / Linux bundles**, then **tier C** (SSH agent) / **tier
