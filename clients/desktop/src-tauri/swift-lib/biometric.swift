@@ -32,6 +32,23 @@ private let errBadBase64: Int32 = -2001
 private let errSealFailed: Int32 = -2002
 private let errAccessControl: Int32 = -2003
 
+/// Decode base64 the way the rest of Hekate's clients emit it: the JS/TS
+/// `b64encode` (clients/web/src/lib/base64.ts) strips trailing `=` padding,
+/// and the codebase convention is "no-pad on output, padding-tolerant on
+/// input." Swift's `Data(base64Encoded:)` is strict — it rejects unpadded
+/// input (and the URL-safe alphabet) outright — which surfaced as a spurious
+/// `errBadBase64` on enable. Re-pad and normalize the alphabet before
+/// decoding so this side honors the same input contract.
+private func decodeBase64Tolerant(_ s: String) -> Data? {
+    var t = s.replacingOccurrences(of: "-", with: "+")
+        .replacingOccurrences(of: "_", with: "/")
+    let remainder = t.count % 4
+    if remainder != 0 {
+        t += String(repeating: "=", count: 4 - remainder)
+    }
+    return Data(base64Encoded: t)
+}
+
 private func deleteItem(service: String, account: String) {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
@@ -60,7 +77,7 @@ public func hekate_bio_enable(
 ) -> Int32 {
     let account = String(cString: accountC)
     let masterKeyB64 = String(cString: masterKeyB64C)
-    guard let masterKeyData = Data(base64Encoded: masterKeyB64) else { return errBadBase64 }
+    guard let masterKeyData = decodeBase64Tolerant(masterKeyB64) else { return errBadBase64 }
 
     // 1. Random 32-byte unlock key.
     var unlockKeyBytes = [UInt8](repeating: 0, count: 32)
