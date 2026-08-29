@@ -117,6 +117,10 @@ error: could not compile `hekate-server` (test "rotate_keys") due to 1 previous 
 
 `cargo clippy` and individual `cargo test --test <name>` runs link far less in parallel and stay under the cap, so the failure mode is specifically full-workspace test builds. CI runners (`ubuntu-latest`) have the headroom and don't hit it.
 
+If you can't give Docker more memory, cap the link parallelism instead — `cargo test --all-targets -j 2` completes the full suite where the default job count OOMs. Verified 2026-08-29 on a 15.35 GiB Docker ceiling (just under the 16 GB floor above): the default run died linking `register_login` and `refresh`, and `-j 2` passed all 453 tests. It trades wall-clock for peak memory.
+
+Watch the exit status rather than the tail of the output when scripting this: `make test | tail` reports the **pipeline's** status, so an `Error 101` from the linker OOM can look like a pass. Use `${PIPESTATUS[0]}` or check `make test` bare.
+
 ## Configuration
 
 `hekate-server` reads config in this order (later overrides earlier):

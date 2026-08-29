@@ -54,6 +54,49 @@ version in a committed lockfile.
 > graph*, `cargo audit` scans the *whole lockfile*. They legitimately
 > disagree. A green `deny` is not a clean bill of health on its own —
 > #172's acceptance requires both.
+>
+> This is why `RUSTSEC-2023-0071` is listed in **both** `deny.toml` and
+> `.cargo/audit.toml`. The duplication looks redundant and is not:
+> cargo-deny never matches it (MySQL off → `rsa` outside the graph, so
+> it warns `advisory was not encountered`), while cargo-audit sees
+> `rsa 0.9.10` sitting in `Cargo.lock` and needs the ignore. Verified
+> 2026-08-29 that the entry stays unmatched under `cargo deny
+> --all-features` too, so the warning is permanent and expected. Do not
+> "clean up" either copy.
+
+**RUSTSEC-2026-0258 — h2 unbounded empty DATA frames (PR #238,
+2026-08-29).** `h2` 0.4.14 → 0.4.19, lockfile-only. Unlike the
+quinn-proto case above, this one **was reachable**: `hyper` is built
+with `["server", "http1", "http2"]`, `axum` with `"http2"`, and
+`axum::serve` serves HTTP/2 — so the upgrade was the fix, not an ignore.
+
+> **The failure mode worth remembering:** nothing in the tree changed.
+> The advisory was published 2026-08-17, three weeks after `Cargo.lock`
+> was last touched (#234) and after `main`'s last green run
+> (2026-07-25). A repo sitting untouched went red because the *advisory
+> database* moved. Every open branch failed the same check
+> simultaneously, and the fix belonged on `main`, not on any of them.
+> When a supply-chain gate goes red with no relevant diff, check the
+> advisory's publication date before hunting for a cause in the branch.
+
+> **Corollary — a base-branch fix does not un-red an open PR by
+> itself.** `.github/workflows/ci.yml` triggers on `pull_request`, which
+> fires on *head* changes; pushing to `main` does not re-trigger it, and
+> `gh run rerun` replays the original recorded merge SHA. So #30 kept
+> failing `cargo-deny` after #238 merged even though its own merge
+> result was clean. Confirmed via `git merge-tree --write-tree` that the
+> merged tree carries h2 0.4.19. **The stale check clears on the next
+> push to the branch — it does not need a rebase**, and force-pushing
+> to "fix" it would be rewriting history for a CI artifact.
+
+**Open — RUSTSEC-2026-0221 (`event-listener` 5.4.1).** `!Send` tags can
+cross thread boundaries via `StackSlot`. Classified **unsound** rather
+than **vulnerability**, so neither `make deny` nor `make audit` fails on
+it and CI stays quiet — it surfaces only as an allowed warning. Left
+undecided deliberately rather than by default. *Pick up:* confirm
+whether our use (transitively via `sqlx`/`flume`) can construct the
+unsound case, then either bump past it or record an ignore with the
+usual justification.
 
 **#18 + #22 findings — 12 of 13 fully remediated.** Verified against the
 code, not assumed. Fixed: E1, E3, E4, E5, E6, E7, E8, H1, M1, M2, M3, L1.
@@ -102,9 +145,11 @@ pending branch changes), so run it per-PR rather than over all of `main`.
 most of their contents shipped; they read far more alarming than the
 code warrants. Worth closing or annotating.
 
-**In flight (all CI-green, unmerged as of 2026-07-21):** #30 desktop
-Touch ID (needs security review + signed-build smoke) · #233 docs
-reconciliation · #234 quinn-proto bump · #235 E6 mandatory-AAD fix.
+**In flight (as of 2026-08-29):** #30 desktop Touch ID is the only open
+PR — needs security review + signed-build smoke. Merged since this line
+was last written: #233 docs reconciliation, #234 quinn-proto bump, #235
+E6 mandatory-AAD fix (all 2026-07-22), #237 H1 Send `/blob` token
+(2026-07-25), #238 h2 advisory bump (2026-08-29).
 
 ## Queued work (with kickoff plans)
 
